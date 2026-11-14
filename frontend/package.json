@@ -7,7 +7,10 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test:terrain": "node scripts/test-terrain.js"
+    "test:terrain": "node scripts/test-terrain.js",
+    "test:api": "uv run --project .. pytest ../backend/tests -q",
+    "api": "uv run --project .. uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload",
+    "start:api": "uv run --project .. uvicorn backend.app.main:app --host 127.0.0.1 --port 8000"
   },
   "dependencies": {
     "leaflet": "1.9.4",
@@ -17,5 +20,6 @@
   },
   "devDependencies": {
     "vite": "6.4.6"
-  }
+  },
+  "packageManager": "pnpm@10.20.0"
 }
