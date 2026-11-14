@@ -6,9 +6,13 @@ import './styles.css';
 
 const h = React.createElement;
 const Map3DView = lazy(() => import('./Map3DView.js'));
-const AREA = { lo0: 76.8, la0: 17.6, lo1: 78.4, la1: 19.2 };
+const SITE_AREAS = {
+  jezero: { label: 'Jezero Crater', lo0: 76.8, la0: 17.6, lo1: 78.4, la1: 19.2 },
+  gale: { label: 'Gale Crater', lo0: 137.0, la0: -6.2, lo1: 138.6, la1: -4.6 },
+};
+const AREA = SITE_AREAS.jezero;
 const MAP_SIZE = 800;
-const PRODUCT_COLORS = { CTX: '#64dfd1', HiRISE: '#64dfd1', CRISM: '#64dfd1', THEMIS: '#64dfd1' };
+const PRODUCT_COLORS = { CTX: '#f5a623', HiRISE: '#45c5ff', CRISM: '#c084fc', THEMIS: '#51d88a' };
 const VERDICT_COLORS = { Supported: '#4bdd9a', Check: '#f4bd4f', Fragile: '#ff5e64' };
 const DEFAULT_LAYERS = {
   basemap: true, slope: false, footprints: true, CTX: true, HiRISE: true,
@@ -33,14 +37,14 @@ function boxQuery(box) {
   return new URLSearchParams({ lo0: box.lo0, la0: box.la0, lo1: box.lo1, la1: box.la1 }).toString();
 }
 
-function geoToMap([lon, lat]) {
-  const x = (lon - AREA.lo0) / (AREA.lo1 - AREA.lo0) * MAP_SIZE;
-  const y = (lat - AREA.la0) / (AREA.la1 - AREA.la0) * MAP_SIZE;
+function geoToMap([lon, lat], area = AREA) {
+  const x = (lon - area.lo0) / (area.lo1 - area.lo0) * MAP_SIZE;
+  const y = (lat - area.la0) / (area.la1 - area.la0) * MAP_SIZE;
   return [y, x];
 }
 
-function mapToGeo({ lat, lng }) {
-  return [AREA.lo0 + lng / MAP_SIZE * (AREA.lo1 - AREA.lo0), AREA.la0 + lat / MAP_SIZE * (AREA.la1 - AREA.la0)];
+function mapToGeo({ lat, lng }, area = AREA) {
+  return [area.lo0 + lng / MAP_SIZE * (area.lo1 - area.lo0), area.la0 + lat / MAP_SIZE * (area.la1 - area.la0)];
 }
 
 function insidePolygon(point, polygon = []) {
@@ -57,7 +61,21 @@ function polygonProductsAt(point, products) {
   return products.filter((product) => insidePolygon(point, product.poly || []));
 }
 
-function makeHatchImage(products) {
+function segmentSummary(segment) {
+  if (!segment) return '';
+  const coordinates = segment.coordinates || [];
+  const from = coordinates[0]; const to = coordinates.at(-1);
+  const endpoint = (point) => point ? `lat ${point[1].toFixed(3)}°, lon ${point[0].toFixed(3)}°` : 'unknown location';
+  const distance = Number(segment.distance_km); const slope = Number(segment.max_slope_deg);
+  return `${segment.verdict || 'Unassessed'}: travel ${Number.isFinite(distance) ? distance.toFixed(2) : '—'} km from ${endpoint(from)} to ${endpoint(to)}${Number.isFinite(slope) ? `; steepest mapped slope ${slope.toFixed(1)}°` : ''}.`;
+}
+
+function claimVerdict(route) {
+  const verdicts = (route?.segments || []).map((segment) => segment.verdict);
+  return verdicts.includes('Fragile') ? 'Fragile' : verdicts.includes('Check') ? 'Check' : verdicts.length ? 'Supported' : '—';
+}
+
+function makeHatchImage(products, area = AREA) {
   const size = 180;
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -73,8 +91,8 @@ function makeHatchImage(products) {
   const pattern = ctx.createPattern(tile, 'repeat');
   for (let y = 0; y < size; y += 2) {
     for (let x = 0; x < size; x += 2) {
-      const lon = AREA.lo0 + (x / size) * (AREA.lo1 - AREA.lo0);
-      const lat = AREA.la0 + ((size - y) / size) * (AREA.la1 - AREA.la0);
+      const lon = area.lo0 + (x / size) * (area.lo1 - area.lo0);
+      const lat = area.la0 + ((size - y) / size) * (area.la1 - area.la0);
       if (!products.some((product) => insidePolygon([lon, lat], product.poly || []))) {
         ctx.fillStyle = 'rgba(4, 15, 15, .76)';
         ctx.fillRect(x, y, 2, 2);
@@ -146,12 +164,12 @@ function MapView(props) {
     map.on('click', (event) => {
       const current = propsRef.current;
       if (!current.drawing) return;
-      const point = mapToGeo(event.latlng);
+      const point = mapToGeo(event.latlng, propsRef.current.area);
       current.onWaypointsChange((old) => [...old, point]);
       current.onRouteInvalidated();
     });
     map.on('mousemove', (event) => {
-      const point = mapToGeo(event.latlng);
+      const point = mapToGeo(event.latlng, propsRef.current.area);
       const products = polygonProductsAt(point, propsRef.current.products);
       propsRef.current.onCursor({ point, products });
     });
@@ -171,23 +189,55 @@ function MapView(props) {
 
   useEffect(() => {
     const map = mapRef.current;
+    if (map) map.fitBounds([[0, 0], [MAP_SIZE, MAP_SIZE]], { animate: false });
+  }, [props.area]);
+
+  useEffect(() => {
+    const map = mapRef.current;
     if (!map) return undefined;
     let active = true;
-    if (baseRef.current) { map.removeLayer(baseRef.current); baseRef.current = null; }
-    if (baseUrlRef.current) { URL.revokeObjectURL(baseUrlRef.current); baseUrlRef.current = null; }
-    if (!props.layers.basemap) return undefined;
-    const query = `${boxQuery(AREA)}&layer=${encodeURIComponent(props.mapLayer || '')}`;
-    fetch(`/api/basemap?${query}`).then(async (response) => {
-      if (!response.ok) throw new Error('USGS basemap is unavailable');
-      const blob = await response.blob();
-      if (!active) return;
-      const url = URL.createObjectURL(blob);
-      baseUrlRef.current = url;
-      baseRef.current = L.imageOverlay(url, [[0, 0], [MAP_SIZE, MAP_SIZE]], { opacity: 0.94, interactive: false }).addTo(map);
-      propsRef.current.onMapStatus(response.headers.get('X-Layer') || 'USGS WMS');
-    }).catch((error) => { if (active) propsRef.current.onMapStatus(error.message); });
-    return () => { active = false; };
-  }, [props.layers.basemap, props.mapLayer]);
+    let timer = null;
+    let controller = null;
+    if (!props.layers.basemap) {
+      if (baseRef.current) { map.removeLayer(baseRef.current); baseRef.current = null; }
+      if (baseUrlRef.current) { URL.revokeObjectURL(baseUrlRef.current); baseUrlRef.current = null; }
+      return undefined;
+    }
+    const loadVisibleArea = () => {
+      controller?.abort();
+      controller = new AbortController();
+      const bounds = map.getBounds();
+      const southwest = mapToGeo(bounds.getSouthWest(), props.area);
+      const northeast = mapToGeo(bounds.getNorthEast(), props.area);
+      const visibleBox = { lo0: southwest[0], la0: southwest[1], lo1: northeast[0], la1: northeast[1] };
+      const query = `${boxQuery(visibleBox)}&layer=${encodeURIComponent(props.mapLayer || '')}`;
+      fetch(`/api/basemap?${query}`, { signal: controller.signal }).then(async (response) => {
+        if (!response.ok) throw new Error('USGS imagery is unavailable for this area');
+        const blob = await response.blob();
+        if (!active) return;
+        const url = URL.createObjectURL(blob);
+        if (baseRef.current) map.removeLayer(baseRef.current);
+        if (baseUrlRef.current) URL.revokeObjectURL(baseUrlRef.current);
+        baseUrlRef.current = url;
+        baseRef.current = L.imageOverlay(url, bounds, { opacity: 0.94, interactive: false }).addTo(map);
+        propsRef.current.onMapStatus(`${response.headers.get('X-Layer') || 'USGS WMS'} · visible area`);
+      }).catch((error) => {
+        if (active && error.name !== 'AbortError') propsRef.current.onMapStatus(error.message);
+      });
+    };
+    const scheduleLoad = () => {
+      clearTimeout(timer);
+      timer = setTimeout(loadVisibleArea, 240);
+    };
+    map.on('moveend zoomend', scheduleLoad);
+    scheduleLoad();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      controller?.abort();
+      map.off('moveend zoomend', scheduleLoad);
+    };
+  }, [props.layers.basemap, props.mapLayer, props.area]);
 
   useEffect(() => {
     const map = mapRef.current; const group = overlayRef.current;
@@ -200,10 +250,10 @@ function MapView(props) {
       if (image) L.imageOverlay(image, [[0, 0], [MAP_SIZE, MAP_SIZE]], { opacity: 0.65, interactive: false }).addTo(group);
     }
     if (active.footprints) {
-      const coverage = makeHatchImage(products);
+      const coverage = makeHatchImage(products, props.area);
       L.imageOverlay(coverage, [[0, 0], [MAP_SIZE, MAP_SIZE]], { opacity: 0.68, interactive: false }).addTo(group);
       products.filter((product) => active[product.inst]).forEach((product) => {
-        const latlngs = (product.poly || []).map(([lon, lat]) => geoToMap([lon, lat]));
+        const latlngs = (product.poly || []).map(([lon, lat]) => geoToMap([lon, lat], props.area));
         if (latlngs.length < 3) return;
         const color = PRODUCT_COLORS[product.inst] || '#a8c2bc';
         L.polygon(latlngs, { color, weight: 1.7, opacity: 0.95, fillColor: color, fillOpacity: 0.08, dashArray: product.src === 'ILLUSTRATIVE' ? '5 5' : null }).addTo(group);
@@ -212,30 +262,31 @@ function MapView(props) {
     if (active.route && props.route?.segments?.length) {
       props.route.segments.forEach((segment) => {
         const color = props.showVerdictColors ? (VERDICT_COLORS[segment.verdict] || '#55e0c0') : '#64dfd1';
-        const points = (segment.coordinates || []).map(geoToMap);
+        const points = (segment.coordinates || []).map((point) => geoToMap(point, props.area));
         if (points.length > 1) L.polyline(points, { color, weight: 4.4, opacity: 0.96, lineCap: 'round' })
           .on('click', () => props.onSegmentSelect?.(props.route.segments.indexOf(segment))).addTo(group);
       });
     } else if (active.route && props.waypoints.length > 1) {
-      L.polyline(props.waypoints.map(geoToMap), { color: '#60d9c1', weight: 3, dashArray: '7 6' }).addTo(group);
+      L.polyline(props.waypoints.map((point) => geoToMap(point, props.area)), { color: '#60d9c1', weight: 3, dashArray: '7 6' }).addTo(group);
     }
     if (active.alternate && props.route?.alternate?.coordinates?.length) {
-      L.polyline(props.route.alternate.coordinates.map(geoToMap), { color: '#b6c3c2', weight: 2.6, dashArray: '7 8', opacity: 0.85 }).addTo(group);
+      L.polyline(props.route.alternate.coordinates.map((point) => geoToMap(point, props.area)), { color: '#b6c3c2', weight: 2.6, dashArray: '7 8', opacity: 0.85 }).addTo(group);
     }
     if (active.stops && props.waypoints.length) {
       props.waypoints.forEach((point, index) => {
         const icon = L.divIcon({ className: 'mars-pin-wrap', html: `<span class="mars-pin">${index === props.waypoints.length - 1 ? 'T' : index + 1}</span>`, iconSize: [26, 26], iconAnchor: [13, 13] });
-        L.marker(geoToMap(point), { icon, keyboard: false }).on('click', () => props.onSegmentSelect?.(Math.min(index, (props.route?.segments?.length || 1) - 1))).addTo(group);
+        L.marker(geoToMap(point, props.area), { icon, keyboard: false }).on('click', () => props.onSegmentSelect?.(Math.min(index, (props.route?.segments?.length || 1) - 1))).addTo(group);
       });
     }
     if (active.comms && props.waypoints.length > 1) {
-      L.polyline([geoToMap(props.waypoints[0]), geoToMap(props.waypoints[props.waypoints.length - 1])],
+      L.polyline([geoToMap(props.waypoints[0], props.area), geoToMap(props.waypoints[props.waypoints.length - 1], props.area)],
         { color: '#64dfff', weight: 1.6, dashArray: '2 7', opacity: 0.9 }).addTo(group);
     }
-  }, [props.layers, props.products, props.dem, props.route, props.waypoints, props.showVerdictColors]);
+  }, [props.layers, props.products, props.dem, props.route, props.waypoints, props.showVerdictColors, props.area]);
 
   return h('div', { className: `map-shell sensor-${props.sensor} ${props.scanning ? 'scan-active' : ''}` },
     h('div', { ref: host, className: 'leaflet-map', role: 'application', 'aria-label': 'Mars planning map. Click to add waypoints.' }),
+    h('button', { className: 'map-recenter-button', onClick: () => props.toolsRef.current.fit?.(), title: 'Return to the original Jezero map extent' }, 'Recenter'),
     h('div', { className: 'map-reticle', 'aria-hidden': true }, h('i'), h('b'), h('span')),
     h('div', { className: 'corner corner-tl' }), h('div', { className: 'corner corner-tr' }),
     h('div', { className: 'corner corner-bl' }), h('div', { className: 'corner corner-br' }),
@@ -393,6 +444,8 @@ function BriefPage({ data, error, loading, onPrint, onPlanner }) {
 }
 
 function MainApp() {
+  const [site, setSite] = useState('jezero');
+  const area = SITE_AREAS[site] || SITE_AREAS.jezero;
   const [status, setStatus] = useState(null);
   const [mapLayers, setMapLayers] = useState({ layers: [], auto: '' });
   const [mapLayer, setMapLayer] = useState('');
@@ -401,6 +454,7 @@ function MainApp() {
   const [dem, setDem] = useState(null);
   const [params, setParams] = useState({});
   const [route, setRoute] = useState(null);
+  const [claimRuns, setClaimRuns] = useState(null);
   const [resources, setResources] = useState(null);
   const [mission, setMission] = useState(null);
   const [dossier, setDossier] = useState(null);
@@ -434,7 +488,7 @@ function MainApp() {
   const [registryRows, setRegistryRows] = useState(null);
   const [toolMessage, setToolMessage] = useState('');
   const [mapMode, setMapMode] = useState('2d');
-  const [verticalExaggeration, setVerticalExaggeration] = useState(3);
+  const [verticalExaggeration, setVerticalExaggeration] = useState(6);
   const [webglAvailable, setWebglAvailable] = useState(null);
   const [map3dMessage, setMap3dMessage] = useState('');
   const toolsRef = useRef({});
@@ -491,18 +545,12 @@ function MainApp() {
     if (!window.location.hash) window.location.hash = '#planner';
     let active = true;
     Promise.allSettled([
-      api('/api/status'), api('/api/layers'), api(`/api/footprints?${boxQuery(AREA)}`),
-      api(`/api/dem?${boxQuery(AREA)}`), api('/api/params'),
+      api('/api/status'), api('/api/layers'), api('/api/params'),
     ]).then((results) => {
       if (!active) return;
-      const [stat, layerResult, footprintResult, demResult, paramResult] = results;
+      const [stat, layerResult, paramResult] = results;
       if (stat.status === 'fulfilled') setStatus(stat.value);
       if (layerResult.status === 'fulfilled') setMapLayers(layerResult.value);
-      if (footprintResult.status === 'fulfilled') {
-        setProducts(footprintResult.value.fps || []);
-        setFootprintsLive(footprintResult.value.live);
-      }
-      if (demResult.status === 'fulfilled') setDem(demResult.value);
       if (paramResult.status === 'fulfilled') setParams(paramResult.value);
       const failed = results.filter((result) => result.status === 'rejected');
       if (failed.length) setNotice(`${failed.length} source request(s) unavailable; cached or placeholder status is shown per layer.`);
@@ -510,6 +558,27 @@ function MainApp() {
     });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    setProducts([]); setFootprintsLive(null); setDem(null);
+    setMap3dMessage('');
+    setMapStatus(`LOADING ${area.label.toUpperCase()} MAP DATA`);
+    Promise.allSettled([
+      api(`/api/footprints?site=${site}&${boxQuery(area)}`),
+      api(`/api/dem?site=${site}&${boxQuery(area)}`),
+    ]).then(([footprintResult, demResult]) => {
+      if (!active) return;
+      if (footprintResult.status === 'fulfilled') {
+        setProducts(footprintResult.value.fps || []);
+        setFootprintsLive(footprintResult.value.live);
+      } else setToolMessage(`${area.label} footprints unavailable: ${footprintResult.reason?.message || 'source error'}`);
+      if (demResult.status === 'fulfilled') setDem(demResult.value);
+      else setMap3dMessage(`${area.label} DEM unavailable: ${demResult.reason?.message || 'source error'}`);
+      setMapStatus(`${area.label.toUpperCase()} · ${footprintResult.status === 'fulfilled' ? 'FOOTPRINT DATA LOADED' : 'FOOTPRINTS UNAVAILABLE'}`);
+    });
+    return () => { active = false; };
+  }, [site, area]);
 
   const selected = route?.segments?.[selectedSegment] || null;
 
@@ -520,10 +589,11 @@ function MainApp() {
     ]);
     setResources(resourceData);
     setMission(missionData);
+    return { resources: resourceData, mission: missionData };
   }, []);
 
   const invalidateRoute = useCallback(() => {
-    setRoute(null); setResources(null); setMission(null); setDossier(null); setPhoto(null);
+    setRoute(null); setClaimRuns(null); setResources(null); setMission(null); setDossier(null); setPhoto(null);
     closePanel('dossier');
     setError('');
   }, []);
@@ -560,13 +630,52 @@ function MainApp() {
     if (waypoints.length < 2) { setError('Add at least two waypoints on the map.'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
-      const target = { name: targetName || 'Crew selected target', claim, coordinates: waypoints[waypoints.length - 1] };
-      const result = await api('/api/route', { method: 'POST', body: JSON.stringify({ target, waypoints, stop_count: Number(stopCount) }) });
-      setRoute(result); setSelectedSegment(0); setDossier(null); setPhoto(null);
-      await refreshMission(result.route_id);
+      const routeResults = await Promise.all(CLAIMS.map(async (item) => {
+        const target = { name: targetName || 'Crew selected target', claim: item.value, coordinates: waypoints[waypoints.length - 1] };
+        const result = await api('/api/route', { method: 'POST', body: JSON.stringify({ target, waypoints, stop_count: Number(stopCount) }) });
+        return [item.value, result];
+      }));
+      const routes = Object.fromEntries(routeResults);
+      const routeExtras = await Promise.all(CLAIMS.map(async (item) => {
+        const result = routes[item.value];
+        const [routeResources, routeMission] = await Promise.all([
+          api(`/api/resources?route_id=${result.route_id}`), api(`/api/mission?route_id=${result.route_id}`),
+        ]);
+        return [item.value, { resources: routeResources, mission: routeMission }];
+      }));
+      const extras = Object.fromEntries(routeExtras);
+      const runs = { routes, extras };
+      setClaimRuns(runs);
+      setRoute(routes[claim]); setResources(extras[claim].resources); setMission(extras[claim].mission);
+      setSelectedSegment(0); setDossier(null); setPhoto(null);
+      setNotice('Route calculated for Terrain, Current conditions, and Thermal claims. Select a claim to inspect its audit.');
       if (layers.stops) api('/api/rover-photos?rover=perseverance&sol=1').then((photoResult) => setPhoto(photoResult[0] || null)).catch(() => setPhoto(null));
     } catch (requestError) { setError(requestError.message); }
     finally { setBusy(false); }
+  };
+
+  const changeClaim = (value) => {
+    if (value === claim) return;
+    setClaim(value);
+    const nextRoute = claimRuns?.routes?.[value];
+    if (nextRoute) {
+      setRoute(nextRoute); setResources(claimRuns.extras[value].resources); setMission(claimRuns.extras[value].mission);
+      setDossier(null);
+      const nextSegment = nextRoute.segments?.[selectedSegment];
+      if (nextSegment && hasPanel('dossier')) api(`/api/segment/${nextSegment.id}/dossier`).then(setDossier).catch(() => setDossier(null));
+      setNotice(`Showing the ${CLAIMS.find((item) => item.value === value)?.label || value} audit. All three claim audits were calculated together.`);
+    }
+  };
+
+  const changeSite = (value) => {
+    if (value === site || !SITE_AREAS[value]) return;
+    setSite(value);
+    setTargetName(`${SITE_AREAS[value].label} field target`);
+    setWaypoints([]);
+    setMapMode('2d');
+    setMap3dMessage('');
+    invalidateRoute();
+    setNotice(`Switched to ${SITE_AREAS[value].label}. Draw a new route for this location.`);
   };
 
   const runStress = async (scenario, segmentIndex = selectedSegment) => {
@@ -578,8 +687,13 @@ function MainApp() {
       await api('/api/stress', { method: 'POST', body: JSON.stringify({ segment_id: stressSegment.id, scenario }) });
       const latestDossier = await api(`/api/segment/${stressSegment.id}/dossier`);
       setDossier(latestDossier);
-      setRoute((old) => old ? ({ ...old, segments: old.segments.map((segment) => segment.id === stressSegment.id ? { ...segment, verdict: latestDossier.verdict, flags: latestDossier.flags } : segment) }) : old);
-      await refreshMission(route.route_id);
+      const updateRoute = (old) => old ? ({ ...old, segments: old.segments.map((segment) => segment.id === stressSegment.id ? { ...segment, verdict: latestDossier.verdict, flags: latestDossier.flags } : segment) }) : old;
+      setRoute(updateRoute);
+      setClaimRuns((old) => old ? ({ ...old,
+        routes: { ...old.routes, [claim]: updateRoute(old.routes[claim]) },
+      }) : old);
+      const updatedExtras = await refreshMission(route.route_id);
+      setClaimRuns((old) => old ? ({ ...old, extras: { ...old.extras, [claim]: updatedExtras } }) : old);
     } catch (requestError) { setError(requestError.message); }
     finally { setStressBusy(false); }
   };
@@ -627,20 +741,21 @@ function MainApp() {
     : route?.segments?.findIndex((segment) => segment.verdict === 'Check') >= 0
       ? route.segments.findIndex((segment) => segment.verdict === 'Check') : 0;
   const saveProject = () => {
-    localStorage.setItem('cairn-project', JSON.stringify({ waypoints, targetName, claim, stopCount, layers }));
+    localStorage.setItem('cairn-project', JSON.stringify({ site, waypoints, targetName, claim, stopCount, layers }));
     setToolMessage('Project inputs saved in this browser.');
   };
   const loadProject = () => {
     try {
       const saved = JSON.parse(localStorage.getItem('cairn-project') || 'null');
       if (!saved) { setToolMessage('No saved project in this browser yet.'); return; }
+      if (SITE_AREAS[saved.site]) setSite(saved.site);
       setWaypoints(saved.waypoints || []); setTargetName(saved.targetName || 'Jezero field target');
       setClaim(saved.claim || 'terrain'); setStopCount(saved.stopCount || 1); setLayers({ ...DEFAULT_LAYERS, ...saved.layers });
       invalidateRoute(); setToolMessage('Project inputs loaded. Recalculate the route to refresh its audit.');
     } catch { setToolMessage('Saved project could not be read.'); }
   };
   const loadRegistry = async () => {
-    try { setRegistryRows(await api(`/api/registry?${boxQuery(AREA)}`)); }
+    try { setRegistryRows(await api(`/api/registry?site=${site}&${boxQuery(area)}`)); }
     catch (requestError) { setToolMessage(`Registry unavailable: ${requestError.message}`); }
   };
   const loadNasaImages = async () => {
@@ -658,14 +773,25 @@ function MainApp() {
     h('div', { className: 'side-panel-head' }, h('div', null, h('span', { className: 'eyebrow' }, 'TOOLS'), h('h2', null, 'Mission setup and advanced controls')),
       h('button', { className: 'icon-button', onClick: () => closePanel('tools'), 'aria-label': 'Close tools' }, '×')),
     h('section', { className: 'tools-section' }, h('h3', null, 'Target and route'),
+      h('label', { className: 'tool-field' }, 'Landing region', h('select', { className: 'text-input', value: site, onChange: (event) => changeSite(event.target.value) },
+        Object.entries(SITE_AREAS).map(([key, location]) => h('option', { key, value: key }, location.label)))),
       h('label', { className: 'tool-field' }, 'Science target', h('input', { className: 'text-input', value: targetName, onChange: (event) => setTargetName(event.target.value) })),
-      h('label', { className: 'tool-field' }, 'Evidence claim', h('select', { className: 'text-input', value: claim, onChange: (event) => setClaim(event.target.value) }, CLAIMS.map((item) => h('option', { key: item.value, value: item.value }, item.label)))),
+      h('div', { className: 'claim-results', role: 'group', 'aria-label': 'Evidence claim results' },
+        h('h4', null, 'Evidence claims · one calculation'),
+        h('p', null, claimRuns ? 'All three audits are ready. Choose one to inspect its route.' : 'Calculate once to audit Terrain, Current conditions, and Thermal together.'),
+        CLAIMS.map((item) => h('button', { key: item.value, className: `claim-result ${claim === item.value ? 'claim-result-selected' : ''}`,
+          'aria-pressed': claim === item.value, disabled: !claimRuns, onClick: () => changeClaim(item.value) },
+        h('span', null, item.label), h('b', null, claimVerdict(claimRuns?.routes?.[item.value])),
+        h('small', null, claimRuns ? `${claimRuns.routes[item.value].segments.length} route segments · click to inspect` : 'Calculated with the route')))),
       h('label', { className: 'tool-field' }, 'Planned stops', h('input', { className: 'text-input', type: 'number', min: 1, value: stopCount, onChange: (event) => setStopCount(Math.max(1, Number(event.target.value) || 1)) })),
       h('div', { className: 'tool-actions' }, h('button', { onClick: () => setDrawing((value) => !value) }, drawing ? 'Pause drawing' : 'Draw route'),
         h('button', { onClick: () => setWaypoints((old) => { invalidateRoute(); return old.slice(0, -1); }) }, 'Undo waypoint'),
         h('button', { onClick: () => { setWaypoints([]); invalidateRoute(); } }, 'Clear route'),
         h('button', { onClick: () => toolsRef.current.fit?.() }, 'Fit map'),
-        h('button', { onClick: () => toolsRef.current.zoomIn?.() }, 'Zoom in'), h('button', { onClick: () => toolsRef.current.zoomOut?.() }, 'Zoom out'))),
+        h('button', { onClick: () => toolsRef.current.zoomIn?.() }, 'Zoom in'), h('button', { onClick: () => toolsRef.current.zoomOut?.() }, 'Zoom out')),
+      h('div', { className: 'tool-route-calculate' },
+        h('span', null, waypoints.length >= 2 ? `${waypoints.length} waypoints · ${area.label}` : 'Place at least two map points to calculate route distance and audit.'),
+        h('button', { className: 'action-button', onClick: calculateRoute, disabled: busy || waypoints.length < 2 }, busy ? 'Calculating route and 3 claims…' : 'Calculate route + all 3 claims'))),
     h('section', { className: 'tools-section' }, h('h3', null, 'Assumptions'),
       h(AssumptionsDrawer, { params, onParamsChange: changeParam, onSave: saveParams, saving: savingParams })),
     h('section', { className: 'tools-section' }, h('h3', null, 'Advanced map layers'),
@@ -730,23 +856,21 @@ function MainApp() {
           !hasDem && h('span', { className: 'map-mode-message', title: '3D requires the DEM for this area.' }, '3D disabled · DEM not loaded')),
         h('div', { className: 'map-stage sensor-' + sensor }, mapMode === '3d'
           ? h(React.Suspense, { fallback: h('div', { className: 'map3d-loading' }, 'Loading local 3D terrain…') },
-            h(Map3DView, { dem, layers, products, route, waypoints, mission, sensor, mapLayer, showVerdictColors, onSegmentSelect: selectSegment,
+            h(Map3DView, { dem, area, layers, products, route, waypoints, mission, sensor, mapLayer, showVerdictColors, onSegmentSelect: selectSegment,
               verticalExaggeration, onExaggerationChange: setVerticalExaggeration,
               onUnavailable: () => { setWebglAvailable(false); setMapMode('2d'); setMap3dMessage('3D unavailable: WebGL could not start. Staying in 2D.'); } }))
-          : h(MapView, { layers, products, dem, route, waypoints, drawing, sensor, toolsRef,
+          : h(MapView, { area, layers, products, dem, route, waypoints, drawing, sensor, toolsRef,
             showVerdictColors, onSegmentSelect: selectSegment, scanning: busy || stressBusy,
             onWaypointsChange: setWaypoints, onRouteInvalidated: invalidateRoute, onCursor: setCursor, onMapStatus: setMapStatus })),
         h('div', { className: 'compact-layer-bar', 'aria-label': 'Map layers' },
           layerChip('basemap', 'Basemap'), layerChip('slope', 'Slope'), layerChip('footprints', 'Data footprints'),
           layerChip('route', 'Route'), h('button', { className: `layer-chip ${showVerdictColors ? 'chip-on' : ''}`, 'aria-pressed': showVerdictColors, onClick: () => setShowVerdictColors((value) => !value) }, 'Verdict colours'), layerChip('stops', 'Stops')),
         h('div', { className: 'map-readout' }, h('span', null, mapStatus),
-          h('span', null, cursor ? `${cursor.point[1].toFixed(4)}°N  ${cursor.point[0].toFixed(4)}°E` : 'Move cursor for coordinates'),
+          h('span', null, cursor ? `lat ${cursor.point[1].toFixed(4)}°  lon ${cursor.point[0].toFixed(4)}°` : 'Move cursor for coordinates'),
           h('span', null, cursor ? activeCursorProducts.length ? activeCursorProducts.map((item) => item.id).join(' · ') : 'No product footprint' : 'Product coverage')),
-      !route && waypoints.length >= 2 && h('div', { className: 'route-ready-row' },
-        h('span', null, `${waypoints.length} waypoints ready · ${targetName || 'Untitled target'}`),
-        h('button', { className: 'action-button', onClick: calculateRoute, disabled: busy }, busy ? 'Calculating route…' : 'Calculate mission route')),
       h('section', { className: 'strip-section panel' }, h('div', { className: 'strip-section-head' }, h('b', null, 'EVIDENCE + RESOURCE STRIPS'),
         h('span', null, route ? `${route.segments.length} segments · select a weak segment` : 'Create a route in Tools to begin')),
+        selected && h('p', { className: 'route-human-summary', 'aria-live': 'polite' }, segmentSummary(selected)),
         h(MissionStrips, { route, resources, selectedSegment: hasPanel('dossier') ? selectedSegment : -1, onSelectSegment: selectSegment })))),
     activeView === 'visor' && h(VisorPage, { route, segmentIndex: visorIndex, setSegmentIndex: setVisorIndex,
       dossier: visorDossier, onSpeak: speakVisor, voiceAvailable, onPlanner: () => navigate('planner') }),

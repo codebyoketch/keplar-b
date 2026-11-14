@@ -23,9 +23,11 @@ export function demToTerrainMesh(dem, verticalExaggeration = 3, maxDimension = 2
   const height = Math.min(sourceHeight, maxDimension);
   const bounds = dem.b;
   const midLat = (Number(bounds.la0) + Number(bounds.la1)) / 2;
-  const metersPerUnit = Math.max((Number(bounds.la1) - Number(bounds.la0)) * 59150 / 100, 1);
-  const worldWidth = (Number(bounds.lo1) - Number(bounds.lo0)) * Math.cos(midLat * Math.PI / 180) /
-    Math.max(Number(bounds.la1) - Number(bounds.la0), 1e-9) * 100;
+  // Keep a stable world scale (1 Three.js unit = 1 km) so zooming and
+  // wider DEM extents show the correct change in apparent feature size.
+  const metersPerUnit = 1000;
+  const worldHeight = (Number(bounds.la1) - Number(bounds.la0)) * 59.15;
+  const worldWidth = (Number(bounds.lo1) - Number(bounds.lo0)) * 59.15 * Math.cos(midLat * Math.PI / 180);
   const positions = new Float32Array(width * height * 3);
   const heights = new Float32Array(width * height);
   let minHeight = Infinity; let maxHeight = -Infinity;
@@ -39,7 +41,7 @@ export function demToTerrainMesh(dem, verticalExaggeration = 3, maxDimension = 2
       heights[i] = elevation;
       minHeight = Math.min(minHeight, elevation); maxHeight = Math.max(maxHeight, elevation);
       positions[i * 3] = (x / (width - 1) - 0.5) * worldWidth;
-      positions[i * 3 + 1] = (0.5 - y / (height - 1)) * 100;
+      positions[i * 3 + 1] = (0.5 - y / (height - 1)) * worldHeight;
       positions[i * 3 + 2] = ((elevation - mean) / metersPerUnit) * Number(verticalExaggeration);
     }
   }
@@ -52,5 +54,5 @@ export function demToTerrainMesh(dem, verticalExaggeration = 3, maxDimension = 2
       indices[index++] = b; indices[index++] = c; indices[index++] = d;
     }
   }
-  return { width, height, positions, heights, indices, bounds, meanElevation: mean, minHeight, maxHeight, worldWidth, metersPerUnit };
+  return { width, height, positions, heights, indices, bounds, meanElevation: mean, minHeight, maxHeight, worldWidth, worldHeight, metersPerUnit };
 }
