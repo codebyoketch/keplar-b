@@ -1,0 +1,95 @@
+{
+  "slope_limit_deg": {
+    "value": 15,
+    "unit": "degrees",
+    "label": "unvalidated assumption"
+  },
+  "boulder_tolerance": {
+    "value": 0.5,
+    "unit": "meters",
+    "label": "unvalidated assumption"
+  },
+  "starting_oxygen": {
+    "value": 100,
+    "unit": "%",
+    "label": "unvalidated assumption"
+  },
+  "starting_power": {
+    "value": 100,
+    "unit": "%",
+    "label": "unvalidated assumption"
+  },
+  "oxygen_rate": {
+    "value": 1.8,
+    "unit": "% per km",
+    "label": "unvalidated assumption"
+  },
+  "power_rate": {
+    "value": 2.2,
+    "unit": "% per km",
+    "label": "unvalidated assumption"
+  },
+  "oxygen_rate_per_hour": {
+    "value": 5,
+    "unit": "% per hour",
+    "label": "unvalidated assumption"
+  },
+  "power_rate_per_hour": {
+    "value": 3,
+    "unit": "% per hour",
+    "label": "unvalidated assumption"
+  },
+  "load_factor": {
+    "value": 1,
+    "unit": "multiplier",
+    "label": "unvalidated assumption"
+  },
+  "stop_duration_minutes": {
+    "value": 15,
+    "unit": "minutes per stop",
+    "label": "unvalidated assumption"
+  },
+  "slope_error_margin_deg": {
+    "value": 6,
+    "unit": "degrees",
+    "label": "unvalidated assumption"
+  },
+  "current_observation_age_limit_years": {
+    "value": 0.1,
+    "unit": "years",
+    "label": "unvalidated assumption"
+  },
+  "coarse_dem_threshold_m": {
+    "value": 10,
+    "unit": "meters per pixel",
+    "label": "unvalidated assumption"
+  },
+  "obstacle_test_radius_cells": {
+    "value": 1,
+    "unit": "grid cells",
+    "label": "unvalidated assumption"
+  },
+  "coarse_terrain_distance_factor": {
+    "value": 1.5,
+    "unit": "multiplier",
+    "label": "unvalidated assumption"
+  },
+  "reserve_minimums": {
+    "value": {
+      "oxygen": 30,
+      "power": 20
+    },
+    "unit": "%",
+    "label": "unvalidated assumption"
+  },
+  "daylight_remaining": {
+    "value": 240,
+    "unit": "minutes",
+    "label": "unvalidated assumption"
+  },
+  "walking_speed": {
+    "value": 2,
+    "unit": "km/h",
+    "label": "unvalidated assumption"
+  }
+}
