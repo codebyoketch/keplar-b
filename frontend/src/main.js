@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './styles.css';
+import { ROUTE_COLORS as VERDICT_COLORS, NEUTRAL_ROUTE_COLOR } from './routeColors.js';
 
 const h = React.createElement;
 const Map3DView = lazy(() => import('./Map3DView.js'));
@@ -13,7 +14,6 @@ const SITE_AREAS = {
 const AREA = SITE_AREAS.jezero;
 const MAP_SIZE = 800;
 const PRODUCT_COLORS = { CTX: '#f5a623', HiRISE: '#45c5ff', CRISM: '#c084fc', THEMIS: '#51d88a' };
-const VERDICT_COLORS = { Supported: '#4bdd9a', Check: '#f4bd4f', Fragile: '#ff5e64' };
 const DEFAULT_LAYERS = {
   basemap: true, slope: false, footprints: true, CTX: true, HiRISE: true,
   CRISM: true, THEMIS: true, radiation: false, route: true, alternate: true,
@@ -261,10 +261,13 @@ function MapView(props) {
     }
     if (active.route && props.route?.segments?.length) {
       props.route.segments.forEach((segment) => {
-        const color = props.showVerdictColors ? (VERDICT_COLORS[segment.verdict] || '#55e0c0') : '#64dfd1';
+        const color = props.showVerdictColors ? (VERDICT_COLORS[segment.verdict] || NEUTRAL_ROUTE_COLOR) : NEUTRAL_ROUTE_COLOR;
         const points = (segment.coordinates || []).map((point) => geoToMap(point, props.area));
-        if (points.length > 1) L.polyline(points, { color, weight: 4.4, opacity: 0.96, lineCap: 'round' })
-          .on('click', () => props.onSegmentSelect?.(props.route.segments.indexOf(segment))).addTo(group);
+        if (points.length > 1) {
+          L.polyline(points, { color: '#071c16', weight: 9, opacity: 0.95, lineCap: 'round', interactive: false }).addTo(group);
+          L.polyline(points, { color, weight: 5, opacity: 1, lineCap: 'round' })
+            .on('click', () => props.onSegmentSelect?.(props.route.segments.indexOf(segment))).addTo(group);
+        }
       });
     } else if (active.route && props.waypoints.length > 1) {
       L.polyline(props.waypoints.map((point) => geoToMap(point, props.area)), { color: '#60d9c1', weight: 3, dashArray: '7 6' }).addTo(group);
@@ -865,6 +868,10 @@ function MainApp() {
         h('div', { className: 'compact-layer-bar', 'aria-label': 'Map layers' },
           layerChip('basemap', 'Basemap'), layerChip('slope', 'Slope'), layerChip('footprints', 'Data footprints'),
           layerChip('route', 'Route'), h('button', { className: `layer-chip ${showVerdictColors ? 'chip-on' : ''}`, 'aria-pressed': showVerdictColors, onClick: () => setShowVerdictColors((value) => !value) }, 'Verdict colours'), layerChip('stops', 'Stops')),
+        route && layers.route && showVerdictColors && h('div', { className: 'route-legend', 'aria-label': 'Route evidence colors for the selected claim' },
+          h('span', { className: 'route-legend-label' }, `${CLAIMS.find((item) => item.value === claim)?.label || 'Selected claim'} route`),
+          ...Object.entries(VERDICT_COLORS).map(([verdict, color]) => h('span', { key: verdict, className: 'route-legend-item' },
+            h('i', { style: { backgroundColor: color }, 'aria-hidden': true }), verdict))),
         h('div', { className: 'map-readout' }, h('span', null, mapStatus),
           h('span', null, cursor ? `lat ${cursor.point[1].toFixed(4)}°  lon ${cursor.point[0].toFixed(4)}°` : 'Move cursor for coordinates'),
           h('span', null, cursor ? activeCursorProducts.length ? activeCursorProducts.map((item) => item.id).join(' · ') : 'No product footprint' : 'Product coverage')),

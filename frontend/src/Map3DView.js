@@ -3,11 +3,11 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { demToTerrainMesh } from './terrain.js';
 import './map3d.css';
+import { ROUTE_COLORS, NEUTRAL_ROUTE_COLOR } from './routeColors.js';
 
 const h = React.createElement;
 const DEFAULT_AREA = { lo0: 76.8, la0: 17.6, lo1: 78.4, la1: 19.2 };
 const PRODUCT_COLORS = { CTX: '#f5a623', HiRISE: '#45c5ff', CRISM: '#c084fc', THEMIS: '#51d88a' };
-const COLORS = { Supported: '#4bdd9a', Check: '#f4bd4f', Fragile: '#ff5e64' };
 
 function encodeBox(box) {
   return new URLSearchParams({ lo0: box.lo0, la0: box.la0, lo1: box.lo1, la1: box.la1 }).toString();
@@ -364,7 +364,7 @@ export default function Map3DView({ dem, area = DEFAULT_AREA, layers, products, 
     if (layers.route) routeSegments.forEach((segment, segmentIndex) => {
       const points = (segment.coordinates || []).map((point) => surfacePoint(point)); if (points.length < 2) return;
       const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-      const color = showVerdictColors ? (COLORS[segment.verdict] || '#64dfd1') : '#64dfd1';
+      const color = showVerdictColors ? (ROUTE_COLORS[segment.verdict] || NEUTRAL_ROUTE_COLOR) : NEUTRAL_ROUTE_COLOR;
       const line = new THREE.Line(lineGeometry, new THREE.LineBasicMaterial({ color, linewidth: 2 }));
       line.userData.segmentIndex = segmentIndex; group.add(line);
     });
