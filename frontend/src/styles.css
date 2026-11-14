@@ -19,7 +19,7 @@
 
 * { box-sizing: border-box; }
 html, body, #root { min-width: 320px; min-height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--ink); font-size: 12px; }
+body { background: var(--bg); color: var(--ink); font-size: 14px; }
 button, input, select { font: inherit; }
 button { color: inherit; }
 button:disabled { cursor: not-allowed; opacity: .42; }
@@ -72,6 +72,8 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .map-stage { height: clamp(410px, 55vh, 690px); min-height: 410px; overflow: hidden; position: relative; border: 1px solid rgba(111, 188, 172, .32); background: #081311; isolation: isolate; }
 .map-shell, .leaflet-map { position: absolute; inset: 0; }
 .leaflet-map { z-index: 1; background: #0a1513; }
+.map-recenter-button { position: absolute; z-index: 8; top: 14px; right: 14px; min-height: 40px; padding: 8px 12px; border: 1px solid rgba(100, 223, 209, .65); color: #e9f7f3; background: rgba(5, 18, 15, .94); font-size: 14px; font-weight: 700; cursor: pointer; }
+.map-recenter-button:hover { background: #15453b; }
 .leaflet-container { background: #0a1513; color: var(--ink); font-family: inherit; cursor: crosshair; }
 .leaflet-control-zoom { border: 1px solid var(--line-strong) !important; border-radius: 0 !important; overflow: hidden; }
 .leaflet-control-zoom a { background: #071512 !important; color: var(--cyan) !important; border-color: var(--line) !important; }
@@ -203,6 +205,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .action-button-full { width: 100%; margin-top: 7px; }
 .drawer-reopen { position: fixed; z-index: 21; right: 12px; top: 78px; box-shadow: 0 4px 20px #000; }
 .strip-section { margin-top: 12px; padding: 12px; overflow: hidden; }
+.route-human-summary { margin: 10px 0; padding: 10px 12px; border-left: 3px solid var(--cyan); background: rgba(18, 48, 42, .65); color: #f0f7f4; font-size: 15px; line-height: 1.5; }
 .strip-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; padding-bottom: 9px; border-bottom: 1px solid var(--line); }
 .strip-section-head > div { display: flex; flex-direction: column; gap: 4px; }
 .strip-section-head > div b { font-size: 11px; letter-spacing: .12em; }
@@ -367,6 +370,18 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .tools-section p, .tools-section label, .tools-section summary, .dossier-panel p, .dossier-panel span, .dossier-panel b { font-size: 14px; line-height: 1.45; }
 .tool-field { display: grid; gap: 6px; margin: 12px 0; color: #d8e5e0; }
 .tool-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.tool-route-calculate { display: grid; gap: 8px; margin-top: 12px; padding: 12px; border: 1px solid var(--line-strong); background: rgba(15, 42, 36, .68); }
+.tool-route-calculate span { color: #dce9e5; font-size: 14px; line-height: 1.45; }
+.tool-route-calculate button { width: 100%; }
+.claim-results { display: grid; gap: 8px; margin: 14px 0; }
+.claim-results h4 { margin: 0; color: var(--cyan); font-size: 15px; }
+.claim-results p { margin: 0; color: #cbd9d4; font-size: 14px; }
+.claim-result { display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; align-items: center; min-height: 52px !important; padding: 8px 10px !important; text-align: left; }
+.claim-result span { font-size: 14px; font-weight: 700; }
+.claim-result b { grid-column: 2; grid-row: 1 / span 2; color: #dce9e5; font-size: 15px; }
+.claim-result small { color: #a9bab4; font-size: 14px; }
+.claim-result.claim-result-selected { border-color: var(--cyan) !important; background: #173b32 !important; }
+.claim-result:disabled { opacity: .55; }
 .tool-actions button, .tools-panel button:not(.icon-button) { border: 1px solid #526660; background: #13231f; color: var(--ink); }
 .tools-panel .action-button { border-color: var(--line-strong) !important; background: #163a31 !important; }
 .tools-panel .assumption-warning { font-size: 14px; }
