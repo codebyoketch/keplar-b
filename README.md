@@ -17,11 +17,24 @@ Set `NASA_API_KEY` in `.env` to a NASA key. If omitted, Cairn uses `DEMO_KEY` wi
 
 ## Run
 
+From the repository root, start the backend with Uvicorn:
+
 ```sh
 uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open <http://127.0.0.1:8000>. The local Python server serves the production files from `frontend/dist`; it requires the one-time frontend build above. To develop the UI with Vite, run `pnpm dev` in `frontend` while the backend is running. The Vite development server proxies API calls to port 8000.
+Alternatively, use pip and a virtual environment:
+
+```sh
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+```
+
+On Windows, activate with `.venv\Scripts\activate` instead. `python backend/run.py` also starts Uvicorn and accepts `CAIRN_HOST` and `CAIRN_PORT` environment variables.
+
+Open <http://127.0.0.1:8000>. The local Python server serves the production files from `frontend/dist`; it requires the one-time frontend build above. To develop the UI with Vite, run `pnpm dev` in `frontend` while the backend is running. The Vite development and preview servers proxy API calls to port 8000, so the browser uses the same origin without needing CORS configuration. You can also run `pnpm api` inside `frontend/` to start the backend with reload enabled. If the backend uses another address or port, start Vite with `CAIRN_API_TARGET=http://127.0.0.1:9000 pnpm dev` (or set it in `frontend/.env.local`). Verify the connection at `/api/status`; interactive API documentation is at `/docs`.
 
 The demo cache makes the selected Jezero area available without a live source connection after a successful prep run. Unavailable live and cached data is labeled as placeholder data in the app.
 

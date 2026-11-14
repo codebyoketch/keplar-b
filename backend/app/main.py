@@ -311,12 +311,14 @@ def brief(route_id:str|None=None):
 
 # Vite's production bundle is served locally. The dev server proxies /api to this app.
 _FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
-if _FRONTEND_DIST.is_dir():
+if (_FRONTEND_DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=_FRONTEND_DIST / "assets"), name="assets")
 
 
 @app.get("/{frontend_path:path}", include_in_schema=False)
 def frontend(frontend_path: str = ""):
+    if frontend_path == "api" or frontend_path.startswith("api/"):
+        raise HTTPException(404, detail="API endpoint not found")
     index = _FRONTEND_DIST / "index.html"
     if index.is_file():
         return FileResponse(index)

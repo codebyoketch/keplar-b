@@ -1,13 +1,20 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
-export default defineConfig({
-  server: {
-    proxy: {
-      '/api': 'http://127.0.0.1:8000',
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const proxy = {
+    '/api': {
+      target: env.CAIRN_API_TARGET || 'http://127.0.0.1:8000',
+      changeOrigin: true,
     },
-  },
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-  },
+  };
+
+  return {
+    server: { proxy },
+    preview: { proxy },
+    build: {
+      outDir: 'dist',
+      emptyOutDir: true,
+    },
+  };
 });
