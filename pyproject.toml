@@ -1,0 +1,19 @@
+[project]
+name = "keplar-b-cairn"
+version = "0.1.0"
+description = "Cairn Trail Mode live NASA/USGS-backed Marswalk planning API"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "numpy>=1.26",
+  "python-dotenv>=1",
+  "pillow>=10",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["."]
