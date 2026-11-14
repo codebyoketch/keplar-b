@@ -2,6 +2,7 @@
 from __future__ import annotations
 import array
 import base64
+import io
 import json
 import math
 import re
@@ -213,6 +214,98 @@ def parse_tiff(body):
     code={(1,8):"B",(2,16):"h",(1,16):"H",(3,32):"f",(2,32):"i",(3,64):"d"}[(tags.get(339,(1,))[0],bits)]
     values=struct.unpack(order+str(width*height)+code,pixels[:width*height*bits//8])
     return width,height,values
+
+
+_HIRISE_PATH=CACHE_DIR/"hirise_jezero"/"DTEEC_023524_1985_023379_1985_U01.IMG"
+
+
+def hirise_dem(bbox, max_dimension=256):
+    """Read and resample the released Jezero PDS3 HiRISE DTM for 3D display only."""
+    if not _HIRISE_PATH.is_file():
+        raise RuntimeError("HiRISE Jezero DTM is not installed; run backend/download_hirise_jezero.py")
+    key="hirise-dem:"+repr((tuple(round(float(v),6) for v in bbox),int(max_dimension)))
+    if key in _memory:return _memory[key]
+    with _HIRISE_PATH.open("rb") as stream:
+        header=stream.read(100_000).decode("ascii","ignore")
+        projection_path=_HIRISE_PATH.with_name("ESP_023524_1985_RED_C_01_ORTHO.LBL")
+        if not projection_path.is_file():
+            raise RuntimeError("HiRISE map label is not installed; rerun backend/download_hirise_jezero.py")
+        projection=projection_path.read_text(encoding="ascii",errors="ignore")
+        label=header.split("\nEND",1)[0]+"\n"+projection.split("\nEND",1)[0]
+        def field(name, cast=float):
+            match=re.search(r"(?m)^\s*"+re.escape(name)+r"\s*=\s*([+-]?[0-9]+(?:\.[0-9]+)?)",label)
+            if not match:raise ValueError("HiRISE label is missing "+name)
+            return cast(match.group(1))
+        width=field("LINE_SAMPLES",int); height=field("LINES",int)
+        record_bytes=field("RECORD_BYTES",int); image_record=field("^IMAGE",int)
+        data_offset=(image_record-1)*record_bytes
+        west=field("WESTERNMOST_LONGITUDE"); east=field("EASTERNMOST_LONGITUDE")
+        south=field("MINIMUM_LATITUDE"); north=field("MAXIMUM_LATITUDE")
+        valid_min=field("VALID_MINIMUM"); valid_max=field("VALID_MAXIMUM")
+        lo0=max(float(bbox[0]),west); la0=max(float(bbox[1]),south)
+        lo1=min(float(bbox[2]),east); la1=min(float(bbox[3]),north)
+        if lo0>=lo1 or la0>=la1:raise ValueError("Requested view does not overlap the HiRISE DTM coverage")
+        x0=(lo0-west)/(east-west)*(width-1); x1=(lo1-west)/(east-west)*(width-1)
+        y0=(north-la1)/(north-south)*(height-1); y1=(north-la0)/(north-south)*(height-1)
+        span_x=max(1.0,x1-x0); span_y=max(1.0,y1-y0)
+        scale=min(1.0,(max_dimension-1)/max(span_x,span_y))
+        out_w=max(2,round(span_x*scale)+1); out_h=max(2,round(span_y*scale)+1)
+        values=[]
+        for oy in range(out_h):
+            sy=min(height-1,max(0,round(y0+oy*(y1-y0)/max(out_h-1,1))))
+            sx_start=max(0,round(x0)); sx_end=min(width-1,round(x1))
+            stream.seek(data_offset+sy*record_bytes+sx_start*4)
+            count=sx_end-sx_start+1
+            row=struct.unpack("<"+str(count)+"f",stream.read(count*4))
+            for ox in range(out_w):
+                sx=min(sx_end-sx_start,max(0,round(x0+ox*(x1-x0)/max(out_w-1,1))-sx_start))
+                value=row[sx]
+                values.append(value if math.isfinite(value) and valid_min<=value<=valid_max else math.nan)
+    valid=[value for value in values if math.isfinite(value)]
+    if not valid:raise ValueError("HiRISE DTM crop contains no valid elevations")
+    fill=sum(valid)/len(valid)
+    arr=array.array("f",(value if math.isfinite(value) else fill for value in values))
+    if sys.byteorder=="big":arr.byteswap()
+    result={"b":{"lo0":lo0,"la0":la0,"lo1":lo1,"la1":la1},"w":out_w,"h":out_h,
+            "z":base64.b64encode(arr.tobytes()).decode(),"res":1.0,"layer":"HiRISE stereo DTM · 1 m source",
+            "value_type":"measured","source":"DTEEC_023524_1985_023379_1985_U01"}
+    _memory[key]=result
+    return result
+
+
+def hirise_ortho(bbox, max_dimension=2048):
+    """Return a small crop of the matching, released HiRISE orthoimage for 3D texturing."""
+    image_path=CACHE_DIR/"hirise_jezero"/"ESP_023524_1985_RED_C_01_ORTHO.JP2"
+    label_path=CACHE_DIR/"hirise_jezero"/"ESP_023524_1985_RED_C_01_ORTHO.LBL"
+    if not image_path.is_file() or not label_path.is_file():
+        raise RuntimeError("HiRISE orthoimage is not installed; run backend/download_hirise_jezero.py")
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise RuntimeError("Install Pillow to decode the local HiRISE orthoimage") from exc
+    label=label_path.read_text(encoding="ascii",errors="ignore")
+    def field(name, cast=float):
+        match=re.search(r"(?m)^\s*"+re.escape(name)+r"\s*=\s*([+-]?[0-9]+(?:\.[0-9]+)?)",label)
+        if not match:raise ValueError("HiRISE label is missing "+name)
+        return cast(match.group(1))
+    width=field("LINE_SAMPLES",int); height=field("LINES",int)
+    west=field("WESTERNMOST_LONGITUDE"); east=field("EASTERNMOST_LONGITUDE")
+    south=field("MINIMUM_LATITUDE"); north=field("MAXIMUM_LATITUDE")
+    lo0=max(float(bbox[0]),west); la0=max(float(bbox[1]),south)
+    lo1=min(float(bbox[2]),east); la1=min(float(bbox[3]),north)
+    if lo0>=lo1 or la0>=la1:raise ValueError("Requested view does not overlap the HiRISE orthoimage")
+    x0=max(0,min(width-1,math.floor((lo0-west)/(east-west)*(width-1))))
+    x1=max(x0+1,min(width,math.ceil((lo1-west)/(east-west)*(width-1))+1))
+    y0=max(0,min(height-1,math.floor((north-la1)/(north-south)*(height-1))))
+    y1=max(y0+1,min(height,math.ceil((north-la0)/(north-south)*(height-1))+1))
+    with Image.open(image_path) as image:
+        image.load()
+        crop=image.crop((x0,y0,x1,y1))
+        crop.thumbnail((max_dimension,max_dimension),Image.Resampling.LANCZOS)
+        output=io.BytesIO(); crop.convert("RGB").save(output,format="JPEG",quality=85,optimize=True)
+    return {"b":{"lo0":lo0,"la0":la0,"lo1":lo1,"la1":la1},"w":crop.width,"h":crop.height,
+            "image":"data:image/jpeg;base64,"+base64.b64encode(output.getvalue()).decode(),
+            "source":"ESP_023524_1985_RED_C_01_ORTHO"}
 
 
 def get_dem(bbox):

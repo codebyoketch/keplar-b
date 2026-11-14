@@ -2,5 +2,6 @@ fastapi
 numpy
 pytest
 python-dotenv
+Pillow
 # Optional acceleration for GeoTIFF DEM decoding; pure-Python parser remains available.
 # rasterio

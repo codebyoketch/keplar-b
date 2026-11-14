@@ -70,6 +70,24 @@ def dem(site:str="jezero",lo0:float|None=None,la0:float|None=None,lo1:float|None
     except Exception as exc:raise HTTPException(502,detail=f"DEM unavailable ({type(exc).__name__})")
 
 
+@app.get("/api/dem/hirise")
+def hirise_dem(site:str="jezero",lo0:float|None=None,la0:float|None=None,lo1:float|None=None,la1:float|None=None):
+    query={"site":site}
+    for key,value in (("lo0",lo0),("la0",la0),("lo1",lo1),("la1",la1)):
+        if value is not None:query[key]=value
+    try:return sources.hirise_dem(sources.bbox_from_query(query))
+    except Exception as exc:raise HTTPException(502,detail=f"HiRISE visual DEM unavailable ({type(exc).__name__}: {exc})")
+
+
+@app.get("/api/dem/hirise/ortho")
+def hirise_ortho(site:str="jezero",lo0:float|None=None,la0:float|None=None,lo1:float|None=None,la1:float|None=None):
+    query={"site":site}
+    for key,value in (("lo0",lo0),("la0",la0),("lo1",lo1),("la1",la1)):
+        if value is not None:query[key]=value
+    try:return sources.hirise_ortho(sources.bbox_from_query(query))
+    except Exception as exc:raise HTTPException(502,detail=f"HiRISE orthoimage unavailable ({type(exc).__name__}: {exc})")
+
+
 @app.get("/api/footprints")
 def footprints(site:str="jezero",lo0:float|None=None,la0:float|None=None,lo1:float|None=None,la1:float|None=None):
     query={"site":site}
