@@ -1,0 +1,6 @@
+fastapi
+numpy
+pytest
+python-dotenv
+# Optional acceleration for GeoTIFF DEM decoding; pure-Python parser remains available.
+# rasterio
