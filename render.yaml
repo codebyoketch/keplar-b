@@ -3,7 +3,7 @@ services:
     name: cairn-trail-mode
     runtime: docker
     plan: free
-    branch: deployment-prep
+    branch: main
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /health
