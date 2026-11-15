@@ -175,8 +175,12 @@ function MapView(props) {
     map.fitBounds([[0, 0], [MAP_SIZE, MAP_SIZE]], { animate: false });
     map.on('click', (event) => {
       const current = propsRef.current;
+      const point = mapToGeo(event.latlng, current.area);
+      if (current.trackerDropMode) {
+        current.onTrackerDrop?.(point);
+        return;
+      }
       if (!current.drawing) return;
-      const point = mapToGeo(event.latlng, propsRef.current.area);
       current.onWaypointsChange((old) => [...old, point]);
       current.onRouteInvalidated();
     });
@@ -294,7 +298,18 @@ function MapView(props) {
       L.polyline([geoToMap(props.waypoints[0], props.area), geoToMap(props.waypoints[props.waypoints.length - 1], props.area)],
         { color: '#64dfff', weight: 1.6, dashArray: '2 7', opacity: 0.9 }).addTo(group);
     }
-  }, [props.layers, props.products, props.dem, props.route, props.waypoints, props.showVerdictColors, props.area]);
+    (props.trackers || []).forEach((tracker) => {
+      const history = (tracker.history || []).map((p) => geoToMap([p.lon, p.lat], props.area)).filter(Boolean);
+      if (history.length > 1) L.polyline(history, { color: tracker.active ? '#7cf2ff' : '#93a7a2', weight: 2.2, dashArray: tracker.active ? null : '5 6', opacity: 0.85 }).addTo(group);
+      const last = tracker.last_seen;
+      if (!last) return;
+      const icon = L.divIcon({ className: 'mars-pin-wrap tracker-pin-wrap', html: `<span class="mars-pin tracker-pin ${tracker.active ? 'tracker-live' : 'tracker-last'}">${(tracker.callsign || '?').slice(0, 2).toUpperCase()}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] });
+      const ts = last.ts ? new Date(last.ts * 1000).toLocaleTimeString() : '';
+      L.marker(geoToMap([last.lon, last.lat], props.area), { icon, keyboard: false, title: `${tracker.callsign}${ts ? ` · last seen ${ts}` : ''}` })
+        .bindTooltip(`${tracker.callsign}${tracker.active ? ' · live' : ' · last seen'}${ts ? ` · ${ts}` : ''}`, { direction: 'top', opacity: 0.95 })
+        .addTo(group);
+    });
+  }, [props.layers, props.products, props.dem, props.route, props.waypoints, props.showVerdictColors, props.area, props.trackers]);
 
   return h('div', { className: `map-shell sensor-${props.sensor} ${props.scanning ? 'scan-active' : ''}` },
     h('div', { ref: host, className: 'leaflet-map', role: 'application', 'aria-label': 'Mars planning map. Click to add waypoints.' }),
@@ -486,6 +501,10 @@ function MainApp() {
   const [savingParams, setSavingParams] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [trackerCallsign, setTrackerCallsign] = useState(() => localStorage.getItem('cairn-tracker-callsign') || '');
+  const [trackerSharing, setTrackerSharing] = useState(false);
+  const [trackerDropMode, setTrackerDropMode] = useState(false);
+  const [trackers, setTrackers] = useState([]);
   const [activeView, setActiveView] = useState(() => window.location.hash.slice(1) || 'planner');
   const [briefData, setBriefData] = useState(null);
   const [briefError, setBriefError] = useState('');
@@ -626,6 +645,32 @@ function MainApp() {
     api(`/api/segment/${segment.id}/dossier`).then((result) => { if (active) setVisorDossier(result); }).catch(() => { if (active) setVisorDossier(null); });
     return () => { active = false; };
   }, [activeView, route, visorIndex]);
+
+  useEffect(() => {
+    let active = true;
+    const load = () => api('/api/tracker').then((result) => { if (active) setTrackers(result.trackers || []); }).catch(() => {});
+    load();
+    const timer = setInterval(load, 4000);
+    return () => { active = false; clearInterval(timer); };
+  }, []);
+
+  const sendTrackerUpdate = useCallback(async (point, active = true) => {
+    const callsign = trackerCallsign.trim();
+    if (!callsign || !point) return;
+    localStorage.setItem('cairn-tracker-callsign', callsign);
+    try {
+      await api('/api/tracker/update', { method: 'POST', body: JSON.stringify({ callsign, lon: point[0], lat: point[1], active }) });
+      const result = await api('/api/tracker').catch(() => null);
+      if (result?.trackers) setTrackers(result.trackers);
+    } catch (requestError) { setError(requestError.message); }
+  }, [trackerCallsign]);
+
+  const clearMyTracker = async () => {
+    const callsign = trackerCallsign.trim();
+    if (!callsign) return;
+    try { await api('/api/tracker/clear', { method: 'POST', body: JSON.stringify({ callsign }) }); setTrackers((old) => old.filter((item) => item.callsign !== callsign)); }
+    catch (requestError) { setError(requestError.message); }
+  };
 
   useEffect(() => {
     if (activeView !== 'brief') return;
@@ -821,6 +866,17 @@ function MainApp() {
       h('p', null, `Gaps list: ${dossier?.needed || 'Select a segment to see its next useful observation.'}`),
       h('p', null, 'MEDA context is not available in this build.'),
       photo && h('div', { className: 'tool-photo' }, h('img', { src: photo.img_src, alt: 'NASA rover context image' }), h('span', null, `${photo.title || photo.camera || 'Rover image'} · context image, not this exact location`))),
+    h('section', { className: 'tools-section' }, h('h3', null, 'Live crew tracker'),
+      h('p', null, 'Share your position on the planning map so others can see your trail and last seen location. (Map coordinates, not Earth GPS.)'),
+      h('label', { className: 'tool-field' }, 'Callsign', h('input', { className: 'text-input', value: trackerCallsign, placeholder: 'e.g. EVA-1', onChange: (event) => setTrackerCallsign(event.target.value) })),
+      h('div', { className: 'tool-actions' },
+        h('button', { className: trackerDropMode ? 'action-button' : '', onClick: () => { if (!trackerCallsign.trim()) { setError('Enter a callsign before sharing your position.'); return; } setTrackerDropMode((v) => !v); setError(''); }, disabled: !trackerCallsign.trim() }, trackerDropMode ? 'Click map to drop position…' : 'Drop my position on map'),
+        h('button', { onClick: () => sendTrackerUpdate((trackers.find((t) => t.callsign === trackerCallsign.trim())?.last_seen ? [trackers.find((t) => t.callsign === trackerCallsign.trim()).last_seen.lon, trackers.find((t) => t.callsign === trackerCallsign.trim()).last_seen.lat] : null), true), disabled: !trackerCallsign.trim() || !trackers.find((t) => t.callsign === trackerCallsign.trim())?.last_seen }, 'Ping last position'),
+        h('button', { onClick: clearMyTracker, disabled: !trackerCallsign.trim() }, 'Clear my track')),
+      trackers.length ? h('div', { className: 'tracker-list' }, trackers.map((t) => {
+        const last = t.last_seen; const ts = last?.ts ? new Date(last.ts * 1000).toLocaleTimeString() : '—';
+        return h('div', { key: t.callsign, className: 'tracker-row' }, h('b', null, t.callsign), h('span', null, t.active ? 'live' : 'last seen'), h('small', null, `${ts}${last ? ` · ${Number(last.lat).toFixed(4)}°, ${Number(last.lon).toFixed(4)}°` : ''}`));
+      })) : h('p', null, 'No crew positions shared yet.')),
     h('section', { className: 'tools-section' }, h('h3', null, 'Project and validation'),
       h('div', { className: 'tool-actions' }, h('button', { onClick: saveProject }, 'Save project'), h('button', { onClick: loadProject }, 'Load project')),
       h('p', null, 'Project inputs are saved in this browser; loaded routes must be recalculated.'),
@@ -873,7 +929,8 @@ function MainApp() {
               onUnavailable: () => { setWebglAvailable(false); setMapMode('2d'); setMap3dMessage('3D unavailable: WebGL could not start. Staying in 2D.'); } }))
           : h(MapView, { area, layers, products, dem, route, waypoints, drawing, sensor, mapLayer, toolsRef,
             showVerdictColors, onSegmentSelect: selectSegment, scanning: busy || stressBusy,
-            onWaypointsChange: setWaypoints, onRouteInvalidated: invalidateRoute, onCursor: setCursor, onMapStatus: setMapStatus })),
+            onWaypointsChange: setWaypoints, onRouteInvalidated: invalidateRoute, onCursor: setCursor, onMapStatus: setMapStatus,
+            trackers, trackerDropMode, onTrackerDrop: (point) => { sendTrackerUpdate(point, true); setTrackerDropMode(false); setNotice(`Position shared for ${trackerCallsign.trim() || 'crew member'}.`); } })),
         h('div', { className: 'compact-layer-bar', 'aria-label': 'Map layers' },
           h('label', { className: 'basemap-picker' }, h('span', null, 'Map style'),
             h('select', { value: mapLayer, onChange: (event) => { setMapLayer(event.target.value); setSensor('plain'); }, 'aria-label': 'Basemap style' },

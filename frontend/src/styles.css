@@ -127,6 +127,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .mars-pin-wrap { background: transparent; border: 0; }
 .mars-pin { display: grid; place-items: center; height: 24px; width: 24px; color: #07110f; background: var(--cyan); border: 2px solid #d6fff4; border-radius: 50% 50% 50% 2px; transform: rotate(-45deg); font-size: 9px; font-weight: 800; box-shadow: 0 0 12px rgba(100, 223, 209, .55); }
 .mars-pin::first-letter { transform: rotate(45deg); }
+.tracker-pin { font-size: 8px; font-weight: 800; }
 .map-readout { min-height: 34px; display: grid; grid-template-columns: 1fr 1.15fr 1.3fr; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line); background: #081411; color: #9ab0a9; font-size: 8px; }
 .map-readout span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .map-readout span:first-child { color: var(--cyan); }

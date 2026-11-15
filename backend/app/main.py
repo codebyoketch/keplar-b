@@ -1,5 +1,6 @@
 from __future__ import annotations
 import math
+import time
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response
 from .config import KEY_STATUS, NASA_API_KEY
@@ -19,6 +20,9 @@ app=FastAPI(title="Cairn: Trail Mode")
 SEGMENT_DOSSIERS={}
 ROUTE_CONTEXTS={}
 LATEST_ROUTE_ID=None
+TRACKERS={}
+TRACKER_HISTORY_LIMIT=200
+TRACKER_STALE_SECONDS=120
 
 
 @app.middleware("http")
@@ -307,6 +311,61 @@ def brief(route_id:str|None=None):
             "stress_test_results":stress_results,"next_observation":next_observation,
             "sources":[{key:p.get(key) for key in ("id","inst","src","res","date","proc")} for d in dossiers.values() for p in d["products"]],
             "data_status":context["data_status"],"advisory_only":True,"print_ready":True}
+
+
+def _tracker_snapshot(now=None):
+    now = time.time() if now is None else now
+    trackers=[]
+    for callsign,data in TRACKERS.items():
+        history=list(data.get("history") or [])
+        last=history[-1] if history else None
+        last_ts=float((last or {}).get("ts") or 0)
+        trackers.append({
+            "callsign":callsign,
+            "active":bool(data.get("active",True)) and (now-last_ts)<=TRACKER_STALE_SECONDS,
+            "last_seen":last,
+            "history":history[-TRACKER_HISTORY_LIMIT:],
+            "updated_at":last_ts,
+        })
+    trackers.sort(key=lambda item: item.get("updated_at") or 0, reverse=True)
+    return {"now":now,"stale_after_seconds":TRACKER_STALE_SECONDS,"trackers":trackers}
+
+
+@app.get("/api/tracker")
+def get_tracker():
+    return _tracker_snapshot()
+
+
+@app.post("/api/tracker/update")
+def update_tracker(payload:dict):
+    if not isinstance(payload,dict):raise HTTPException(400,detail="Request body must be an object")
+    callsign=str(payload.get("callsign") or "").strip()
+    if not callsign:raise HTTPException(400,detail="callsign is required")
+    if len(callsign)>40:raise HTTPException(400,detail="callsign is too long")
+    try:
+        lon=float(payload["lon"]); lat=float(payload["lat"])
+        if not (math.isfinite(lon) and math.isfinite(lat)):raise ValueError
+    except Exception:raise HTTPException(400,detail="lon and lat must be finite numbers")
+    active=bool(payload.get("active",True))
+    now=time.time()
+    entry=TRACKERS.setdefault(callsign,{"active":True,"history":[]})
+    entry["active"]=active
+    point={"lon":lon,"lat":lat,"ts":now}
+    history=entry.setdefault("history",[])
+    history.append(point)
+    if len(history)>TRACKER_HISTORY_LIMIT: del history[:-TRACKER_HISTORY_LIMIT]
+    return {"ok":True,"tracker":{"callsign":callsign,"active":active,"last_seen":point,"history":history[-TRACKER_HISTORY_LIMIT:],"updated_at":now}}
+
+
+@app.post("/api/tracker/clear")
+def clear_tracker(payload:dict):
+    if not isinstance(payload,dict):raise HTTPException(400,detail="Request body must be an object")
+    callsign=str(payload.get("callsign") or "").strip()
+    if callsign:
+        TRACKERS.pop(callsign,None)
+    else:
+        TRACKERS.clear()
+    return {"ok":True}
 
 
 # Vite's production bundle is served locally. The dev server proxies /api to this app.
