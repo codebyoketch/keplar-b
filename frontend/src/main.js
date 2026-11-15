@@ -24,6 +24,18 @@ const CLAIMS = [
   { value: 'current', label: 'Current surface conditions' },
   { value: 'thermal', label: 'Thermal context' },
 ];
+const QUICK_BASEMAPS = [
+  ['', 'Automatic'],
+  ['MDIM21', 'Global imagery · MDIM21'],
+  ['MDIM21_color', 'Color imagery · MDIM21'],
+  ['THEMIS', 'THEMIS daytime'],
+  ['THEMIS_controlled', 'THEMIS controlled'],
+  ['THEMIS_night', 'THEMIS infrared night'],
+  ['MOLA_color', 'COLOR RELIEF · MOLA elevation'],
+  ['MOLA_bw', 'Grayscale elevation · MOLA'],
+  ['MOLA_THEMIS_blend', 'Color terrain blend · MOLA + THEMIS'],
+  ['HRSC_MOLA_Blend_Hillshade', 'HRSC + MOLA shaded relief'],
+];
 
 function api(path, options = {}) {
   return fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options }).then(async (response) => {
@@ -448,7 +460,7 @@ function MainApp() {
   const area = SITE_AREAS[site] || SITE_AREAS.jezero;
   const [status, setStatus] = useState(null);
   const [mapLayers, setMapLayers] = useState({ layers: [], auto: '' });
-  const [mapLayer, setMapLayer] = useState('');
+  const [mapLayer, setMapLayer] = useState('MOLA_color');
   const [products, setProducts] = useState([]);
   const [footprintsLive, setFootprintsLive] = useState(null);
   const [dem, setDem] = useState(null);
@@ -859,10 +871,13 @@ function MainApp() {
             h(Map3DView, { dem, area, layers, products, route, waypoints, mission, sensor, mapLayer, showVerdictColors, onSegmentSelect: selectSegment,
               verticalExaggeration, onExaggerationChange: setVerticalExaggeration,
               onUnavailable: () => { setWebglAvailable(false); setMapMode('2d'); setMap3dMessage('3D unavailable: WebGL could not start. Staying in 2D.'); } }))
-          : h(MapView, { area, layers, products, dem, route, waypoints, drawing, sensor, toolsRef,
+          : h(MapView, { area, layers, products, dem, route, waypoints, drawing, sensor, mapLayer, toolsRef,
             showVerdictColors, onSegmentSelect: selectSegment, scanning: busy || stressBusy,
             onWaypointsChange: setWaypoints, onRouteInvalidated: invalidateRoute, onCursor: setCursor, onMapStatus: setMapStatus })),
         h('div', { className: 'compact-layer-bar', 'aria-label': 'Map layers' },
+          h('label', { className: 'basemap-picker' }, h('span', null, 'Map style'),
+            h('select', { value: mapLayer, onChange: (event) => { setMapLayer(event.target.value); setSensor('plain'); }, 'aria-label': 'Basemap style' },
+              QUICK_BASEMAPS.filter(([value]) => !value || (mapLayers.layers || []).includes(value)).map(([value, label]) => h('option', { key: value || 'auto', value }, value ? label : `Automatic · ${mapLayers.auto || 'loading'}`)))),
           layerChip('basemap', 'Basemap'), layerChip('slope', 'Slope'), layerChip('footprints', 'Data footprints'),
           layerChip('route', 'Route'), h('button', { className: `layer-chip ${showVerdictColors ? 'chip-on' : ''}`, 'aria-pressed': showVerdictColors, onClick: () => setShowVerdictColors((value) => !value) }, 'Verdict colours'), layerChip('stops', 'Stops')),
         h('div', { className: 'map-readout' }, h('span', null, mapStatus),

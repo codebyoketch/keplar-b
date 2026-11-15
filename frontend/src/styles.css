@@ -340,6 +340,10 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .map-section { display: grid; gap: 8px; }
 .planner-page .map-stage { height: min(61vh, 680px); min-height: 380px; border-color: var(--line-strong); }
 .compact-layer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border: 1px solid var(--line); background: var(--panel); }
+.basemap-picker { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 9px; border: 1px solid #526660; background: #111e1b; color: #d5e3df; font-size: 13px; }
+.basemap-picker span { white-space: nowrap; color: #91aaa2; }
+.basemap-picker select { min-width: 190px; max-width: min(42vw, 330px); min-height: 30px; border: 0; outline: 0; background: transparent; color: #f1f7f5; font: inherit; cursor: pointer; }
+.basemap-picker option { background: #111e1b; color: #f1f7f5; }
 .layer-chip { min-height: 38px; padding: 6px 12px; border: 1px solid #526660; background: #111e1b; color: #e0ece8; font-size: 14px; cursor: pointer; }
 .layer-chip.chip-on { border-color: var(--cyan); background: #17362f; color: #fff; }
 .layer-chip::before { content: '○'; margin-right: 7px; }
@@ -420,6 +424,8 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   .planner-page .mission-clock, .planner-page .mission-margin { border-left: 0; border-top: 1px solid var(--line); }
   .planner-page .map-stage { height: 58vh; min-height: 350px; }
   .compact-layer-bar { gap: 5px; }
+  .basemap-picker { flex: 1 1 100%; }
+  .basemap-picker select { flex: 1; max-width: none; }
   .layer-chip { flex: 1 1 30%; }
 }
 @media (max-width: 520px) {
