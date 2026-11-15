@@ -2,7 +2,7 @@
 
 Cairn is an advisory Marswalk planner for a small Jezero Crater area. It audits orbital evidence along a crew-drawn route, stress-tests segments, projects resources and shows a turn-back clock. It is a hackathon planning aid, not flight-certified software; resource values are editable, unvalidated assumptions.
 
-For an end-to-end product explanation and a timed tutorial-video walkthrough, see [Cairn project walkthrough and video guide](DEMO_SCRIPT.md).
+For the product explanation, system architecture, and workflow, see the [Cairn project guide](PROJECT_GUIDE.md).
 
 For a short project presentation, see the [seven-slide deck](presentation/Cairn_Project_Introduction.pptx) and its [speaker notes](presentation/SPEAKER_NOTES.md).
 

@@ -1,6 +1,6 @@
-# Cairn project walkthrough and video guide
+# Cairn Project Guide
 
-This guide explains what Cairn does, how its route analysis works, and what to show in a short tutorial video. It describes the current interface and is written to support both narration and screen recording.
+This guide explains what Cairn does, how route analysis works, and how to use the current interface.
 
 ## The project in one minute
 
@@ -42,7 +42,7 @@ flowchart LR
 
 A segment can be well supported by imagery while the overall mission projection is NO-GO, or have weak evidence while resource margins remain positive. The two verdict systems answer different questions.
 
-### Data and limits to explain on camera
+### Data and limitations
 
 | On screen | Role | Important limitation |
 | --- | --- | --- |
@@ -50,7 +50,7 @@ A segment can be well supported by imagery while the overall mission projection 
 | **Slope / DEM** | Elevation data supplies the route grid, derived slope, and terrain visualization. | Regional MOLA data is coarse and may smooth local hazards. The 3D mesh visualizes the DEM; routing and audits use the DEM grid, not the rendered mesh. Fine 3D detail needs a separate HiRISE dataset and may not be installed in the hosted demo. |
 | **CTX, HiRISE, CRISM, THEMIS footprints** | PDS orbital product footprints are queried through the ODE REST service and overlaid on the map. | A footprint means an observation covers an area; it does not mean the image resolves every hazard or describes present conditions. |
 | **NASA rover image** | Optional image for visual context. | It is labeled as context imagery and is not necessarily from the route location. NASA's API key is only needed for NASA APOD and rover-photo requests, not route planning or the map. |
-| **PLACEHOLDER DATA badge / illustrative footprint** | Lets the user see the interface when live product records are unavailable. | These polygons are synthetic examples, not orbital observations. Keep the badge and labels visible when recording them. |
+| **PLACEHOLDER DATA badge / illustrative footprint** | Lets the user see the interface when live product records are unavailable. | These polygons are synthetic examples, not orbital observations. Keep the badge and labels visible when presenting the project. |
 | **Resource margins and assumptions** | A transparent projection using crew-defined inputs and a documented formula. | The public demo keeps assumptions read-only. Values are unvalidated and are not operational life-support telemetry. |
 
 The Current surface conditions claim is deliberately cautious: orbital data is not live local weather or a current rover reading. THEMIS is regional thermal context, not astronaut-level surface temperature. The MEDA context source is not connected in this build.
@@ -66,32 +66,15 @@ The Current surface conditions claim is deliberately cautious: orbital data is n
 
 On the Plan page, click an evidence strip segment or a waypoint/stop to open its dossier. Use **Show all flags and sources** for the complete evidence detail. After a route is calculated, **Run stress test** is available; the dossier also offers obstacle and slope-error scenarios.
 
-## Suggested 6-minute tutorial video
-
-| Time | Screen action | Suggested narration |
-| --- | --- | --- |
-| 0:00–0:25 | Open Cairn on the Plan page. Show the map and mission status banner. | “Cairn is a Marswalk planning prototype. It combines terrain-based routing, checks orbital evidence along the route, and estimates resource margins. It is advisory only—not a certified navigation or life-support system.” |
-| 0:25–0:55 | Point out the **Plan**, **Field visor**, and **Mission brief** navigation. Open **Tools** and close it. | “The workflow starts in Plan. Tools contains the mission setup and detailed controls. The other two views turn a calculated route into field directions and a print-ready brief.” |
-| 0:55–1:35 | In **Tools**, show the landing-region and target controls. Return to the map, click two or three points, then show the new route guide state. | “Choose Jezero or Gale, name the target, then place at least two waypoints on the map. Each click adds a longitude and latitude point. The planner needs a DEM for this area before it can calculate a route.” |
-| 1:35–2:05 | Show **Automatic · MDIM21**, the layer chips, and the footprints on the map. Move the pointer to show map coordinates/coverage. | “The default basemap is the automatic MDIM21 layer. The footprint overlay shows where orbital products are available. Coverage is not the same as sufficient detail: CTX and HiRISE have different image scales.” |
-| 2:05–2:45 | Open **Tools**, select **Calculate route + all 3 claims**, then show route, verdict, turn-back clock, and evidence/resource strips. | “Cairn uses the elevation grid to avoid cells above the slope limit and find a lower-cost path. One calculation audits Terrain, Current conditions, and Thermal claims. The route verdict and the mission resource verdict are separate.” |
-| 2:45–3:30 | Click a segment. In the dossier, show coverage, scale, age/type checks, flags, and sources. Select another claim in Tools. | “Each segment is checked against sampled product footprints. The dossier explains what supports the claim and what is missing. Switching claims reuses the calculations rather than asking the user to run them separately.” |
-| 3:30–4:15 | Run an unseen-obstacle stress test on a segment, then show the updated dossier and mission margins. | “The stress test blocks a small area near the segment and tries to route around it. If that changes the path, Cairn updates the segment caveats and worst-case resource projection with the detour. This is a scenario, not a prediction that an obstacle exists there.” |
-| 4:15–4:45 | Open assumptions in Tools and show their labels; return to the mission margin banner. | “Resource estimates depend on explicit assumptions such as walking speed, load, stop duration, and reserves. The public demo keeps these read-only. They are unvalidated planning inputs, not measured crew telemetry.” |
-| 4:45–5:15 | Open **Field visor**, move between segments, optionally try speech. | “The Field visor turns a selected route segment into concise text directions. Speech is optional and depends on browser support; the text remains available either way.” |
-| 5:15–5:45 | Open **Mission brief**, scroll through caveats/resources, choose **Print / Save PDF**. | “The brief collects the route verdict, resource margins, evidence caveats, stress results, and the next useful observation into an exportable page.” |
-| 5:45–6:00 | End on the map and advisory statement. | “Cairn makes the basis and gaps in a planning result visible. It does not replace mission procedures, current local measurements, or human review.” |
-
-## A reliable recording walkthrough
+## Example end-to-end walkthrough
 
 1. Open the live demo at <https://cairn-xfny.onrender.com> and wait for the map and status to finish loading. Render's free service may need a short wake-up after idle time.
-2. Keep the **PLACEHOLDER DATA** badge visible if it appears. Never describe illustrative footprints as real observations.
-3. In **Tools**, leave the site on Jezero Crater and use a clear target name such as `South rim bedrock`.
-4. Add two or three nearby points by clicking the map. The original demo coordinates are approximately `77.57°E, 18.40°N`, `77.60°E, 18.40°N`, and optionally `77.62°E, 18.40°N`.
-5. In **Tools**, choose **Calculate route + all 3 claims**. Wait for the map, verdict, and strips to update before narrating results.
-6. Click a segment and inspect its dossier. If a segment has less than full HiRISE coverage, it is a useful example for discussing uncertainty and the unseen-obstacle stress test.
-7. Record whichever claim and mission verdict the app actually computes. Those values depend on the data response, selected route, and assumptions; do not promise a particular GO / NO-GO result.
-8. End with Field visor and Mission brief. Leave the app's advisory and placeholder labels visible in any close-up.
+2. In **Tools**, leave the site on Jezero Crater and use a clear target name such as `South rim bedrock`.
+3. Add two or three nearby points by clicking the map. The demo coordinates are approximately `77.57°E, 18.40°N`, `77.60°E, 18.40°N`, and optionally `77.62°E, 18.40°N`.
+4. In **Tools**, choose **Calculate route + all 3 claims**. Review the route, mission margin, evidence/resource strips, and data-status labels.
+5. Click a segment and inspect its dossier. If it has less than full HiRISE coverage, use it to understand the uncertainty and unseen-obstacle stress test.
+6. Review whichever claim and mission verdict the app computes. Results depend on the data response, selected route, and assumptions; a particular GO / NO-GO result is not guaranteed.
+7. Use **Field visor** for segment directions and **Mission brief** to review or print the route summary.
 
 ## Architecture for a technical explainer
 
