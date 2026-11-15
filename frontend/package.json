@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "api": "backend/.venv/bin/uvicorn app:app --app-dir backend --host 127.0.0.1 --port 8000 --reload",
-    "start": "backend/.venv/bin/uvicorn app:app --app-dir backend --host 127.0.0.1 --port 8000",
-    "test:api": "backend/.venv/bin/python -m pytest backend/tests -q",
+    "legacy:api": "backend/.venv/bin/uvicorn app:app --app-dir backend --host 127.0.0.1 --port 8000 --reload",
+    "legacy:start": "backend/.venv/bin/uvicorn app:app --app-dir backend --host 127.0.0.1 --port 8000",
+    "legacy:test:api": "backend/.venv/bin/python -m pytest backend/tests -q",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test:terrain": "node scripts/test-terrain.js",
