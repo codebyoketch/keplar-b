@@ -34,6 +34,17 @@ async def redact_server_key(request:Request,call_next):
     return StarletteResponse(body,status_code=response.status_code,headers=headers,media_type=response.media_type)
 
 
+@app.post("/api/explore")
+def explore(payload: dict):
+    from .explore import suggest
+    try:
+        return suggest(payload)
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(502, detail=f"Exploration data unavailable ({type(exc).__name__})")
+
+
 @app.get("/api/status")
 def status():
     return {"key":KEY_STATUS}

@@ -259,6 +259,10 @@ function MapView(props) {
         L.polygon(latlngs, { color, weight: 1.7, opacity: 0.95, fillColor: color, fillOpacity: 0.08, dashArray: product.src === 'ILLUSTRATIVE' ? '5 5' : null }).addTo(group);
       });
     }
+    (props.exploration?.suggestions || []).forEach((item, index) => {
+      L.polyline(item.preview.coordinates.map((p) => geoToMap(p, props.area)), { color: '#c5f6ff', weight: 3, dashArray: '5 7' }).addTo(group);
+      L.marker(geoToMap(item.destination, props.area), { icon: L.divIcon({ className: 'mars-pin-wrap', html: `<span class="mars-pin">${index + 1}</span>`, iconSize: [26,26] }) }).bindTooltip(`Explore ${index + 1}: ${Math.round(item.coverage * 100)}% covered`).addTo(group);
+    });
     if (active.route && props.route?.segments?.length) {
       props.route.segments.forEach((segment) => {
         const color = props.showVerdictColors ? (VERDICT_COLORS[segment.verdict] || NEUTRAL_ROUTE_COLOR) : NEUTRAL_ROUTE_COLOR;
@@ -285,7 +289,7 @@ function MapView(props) {
       L.polyline([geoToMap(props.waypoints[0], props.area), geoToMap(props.waypoints[props.waypoints.length - 1], props.area)],
         { color: '#64dfff', weight: 1.6, dashArray: '2 7', opacity: 0.9 }).addTo(group);
     }
-  }, [props.layers, props.products, props.dem, props.route, props.waypoints, props.showVerdictColors, props.area]);
+  }, [props.exploration, props.layers, props.products, props.dem, props.route, props.waypoints, props.showVerdictColors, props.area]);
 
   return h('div', { className: `map-shell sensor-${props.sensor} ${props.scanning ? 'scan-active' : ''}` },
     h('div', { ref: host, className: 'leaflet-map', role: 'application', 'aria-label': 'Mars planning map. Click to add waypoints.' }),
@@ -462,6 +466,17 @@ function MainApp() {
   const [mission, setMission] = useState(null);
   const [dossier, setDossier] = useState(null);
   const [waypoints, setWaypoints] = useState([]);
+  const [exploration, setExploration] = useState(null);
+  const [exploring, setExploring] = useState(false);
+  const exploreRequest = useRef(0);
+  async function autoExplore() {
+    const request = ++exploreRequest.current; setExploring(true);
+    try {
+      const result = await api('/api/explore', { method: 'POST', body: JSON.stringify({ site, claim, start: waypoints[0] || null }) });
+      if (request === exploreRequest.current) { setExploration(result); setMapMode('2d'); }
+    } catch (err) { if (request === exploreRequest.current) setError(err.message); }
+    finally { if (request === exploreRequest.current) setExploring(false); }
+  }
   const [selectedSegment, setSelectedSegment] = useState(0);
   const [targetName, setTargetName] = useState('Jezero field target');
   const [claim, setClaim] = useState('terrain');
@@ -629,7 +644,11 @@ function MainApp() {
     return () => { active = false; };
   }, [activeView, route]);
 
-  const calculateRoute = async () => {
+  useEffect(() => { exploreRequest.current += 1; setExploration(null); setExploring(false); }, [site, waypoints, claim, params]);
+  const savedWaypoints = waypoints;
+  const calculateRoute = async (chosenWaypoints = waypoints, chosenName = targetName) => {
+    const waypoints = Array.isArray(chosenWaypoints) ? chosenWaypoints : savedWaypoints;
+    const targetName = chosenName;
     if (waypoints.length < 2) { setError('Add at least two waypoints on the map.'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
@@ -862,9 +881,22 @@ function MainApp() {
             h(Map3DView, { dem, area, layers, products, route, waypoints, mission, sensor, mapLayer, showVerdictColors, onSegmentSelect: selectSegment,
               verticalExaggeration, onExaggerationChange: setVerticalExaggeration,
               onUnavailable: () => { setWebglAvailable(false); setMapMode('2d'); setMap3dMessage('3D unavailable: WebGL could not start. Staying in 2D.'); } }))
-          : h(MapView, { area, layers, products, dem, route, waypoints, drawing, sensor, toolsRef,
+          : h(MapView, { exploration, area, layers, products, dem, route, waypoints, drawing, sensor, toolsRef,
             showVerdictColors, onSegmentSelect: selectSegment, scanning: busy || stressBusy,
             onWaypointsChange: setWaypoints, onRouteInvalidated: invalidateRoute, onCursor: setCursor, onMapStatus: setMapStatus })),
+        h('section', { className: 'explore-results tools-section' },
+          h('button', { onClick: autoExplore, disabled: exploring || busy }, exploring ? 'Finding destinations…' : 'Auto explore'),
+          exploration && h('div', null,
+            h('p', null, exploration.start_source === 'site_center' ? 'Assumed start — site center. Place a waypoint to change it.' : 'Starting from your first waypoint.'),
+            exploration.message && h('p', null, exploration.message),
+            exploration.diagnostics && h('p', null, `${exploration.diagnostics.claim_products} real observation footprints for this claim · ${exploration.diagnostics.covered_cells} covered terrain cells · ${exploration.diagnostics.over_budget} tested routes beyond mission limits`),
+            exploration.diagnostics?.source_errors?.length > 0 && h('p', null, `Some observation sources are unavailable: ${exploration.diagnostics.source_errors.join('; ')}`),
+            ...exploration.suggestions.map((item, index) => h('article', { key: index },
+              h('p', null, `${index + 1}. ${item.verdict} · ${(item.coverage * 100).toFixed(0)}% route coverage · ${item.distance_km.toFixed(2)} km outbound`),
+              h('p', null, `Round trip: ${item.resources.round_trip_worst.time_minutes} min · oxygen margin ${item.resources.safety_margins_worst.oxygen_pct}% · power margin ${item.resources.safety_margins_worst.power_pct}%`),
+              h('p', null, item.warnings.map((warning) => warning.reason).join(' ')),
+              h('p', null, item.coverage < 1 ? 'Uncovered approach segments. Preview estimate; final calculation refreshes observations.' : 'Preview estimate; orbital coverage does not establish local safety.'),
+              h('button', { onClick: () => { const points = [exploration.start, item.destination]; setWaypoints(points); setTargetName(`Auto explore ${index + 1}`); calculateRoute(points, `Auto explore ${index + 1}`); } }, 'Use this destination'))))),
         h('div', { className: 'compact-layer-bar', 'aria-label': 'Map layers' },
           layerChip('basemap', 'Basemap'), layerChip('slope', 'Slope'), layerChip('footprints', 'Data footprints'),
           layerChip('route', 'Route'), h('button', { className: `layer-chip ${showVerdictColors ? 'chip-on' : ''}`, 'aria-pressed': showVerdictColors, onClick: () => setShowVerdictColors((value) => !value) }, 'Verdict colours'), layerChip('stops', 'Stops')),
