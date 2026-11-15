@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "python",
+  "packages": {
+    "node": "22",
+    "python": "3.12"
+  },
+  "steps": {
+    "build": {
+      "commands": [
+        "...",
+        "cd frontend && npm ci && npm run build"
+      ]
+    }
+  },
+  "deploy": {
+    "variables": {
+      "CAIRN_ENABLE_PARAM_UPDATES": "false"
+    },
+    "startCommand": "uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+  }
+}

@@ -4,15 +4,22 @@ Cairn is a public, no-login demo. Keep the frontend and API on the same origin s
 
 ## Build and run
 
-Build the frontend, then run the FastAPI application as the single web service:
+Install the Python dependencies and build the frontend, then run the FastAPI application as the single web service:
 
 ```sh
+pip install -r requirements.txt
 cd frontend && npm ci && npm run build
 cd ..
-uv run uvicorn backend.app.main:app --host 0.0.0.0 --port "$PORT"
+uvicorn backend.app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
 ```
 
 Set `PORT` to the port supplied by the hosting platform. The API serves `frontend/dist` when that directory exists. Run one Uvicorn worker and one app instance for this demo: route and stress-test results are kept in process memory. Multiple workers or instances can lose those results between requests.
+
+## Railway
+
+The repository's `railpack.json` configures a single Railway service. It installs Python 3.12 and Node 22, builds the frontend, starts Uvicorn on Railway's `$PORT`, and keeps shared assumption updates disabled. Connect the `deployment-prep` branch, leave the service root directory at the repository root, and generate a public domain. Keep the service to one replica.
+
+`NASA_API_KEY` is not required for the map, DEM, route planner, or basic demo. Add a personal key only as a Railway service variable if NASA APOD or rover-photo requests are needed. Railway trial accounts with restricted network access may need GitHub verification before the service can reach upstream NASA/USGS sources.
 
 ## Environment
 
