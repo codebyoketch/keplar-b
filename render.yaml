@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: cairn-trail-mode
+    runtime: docker
+    plan: free
+    branch: deployment-prep
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: CAIRN_ENABLE_PARAM_UPDATES
+        value: "false"

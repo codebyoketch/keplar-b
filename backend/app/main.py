@@ -77,6 +77,12 @@ def status():
     return {"key":KEY_STATUS,"param_updates_enabled":PARAM_UPDATES_ENABLED}
 
 
+@app.get("/health", include_in_schema=False)
+def health():
+    """Lightweight liveness endpoint for hosting and uptime monitors."""
+    return {"status":"ok"}
+
+
 @app.get("/api/layers")
 def layers():
     try:

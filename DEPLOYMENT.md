@@ -15,11 +15,15 @@ uvicorn backend.app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
 
 Set `PORT` to the port supplied by the hosting platform. The API serves `frontend/dist` when that directory exists. Run one Uvicorn worker and one app instance for this demo: route and stress-test results are kept in process memory. Multiple workers or instances can lose those results between requests.
 
-## Railway
+## Render
 
-The repository's `railpack.json` configures a single Railway service. It installs Python 3.12 and Node 22, builds the frontend, starts Uvicorn on Railway's `$PORT`, and keeps shared assumption updates disabled. Connect the `deployment-prep` branch, leave the service root directory at the repository root, and generate a public domain. Keep the service to one replica.
+The repository's `render.yaml` and `Dockerfile` configure one Render web service. The Docker build installs Python 3.12 and Node 22, builds the frontend, and serves it with FastAPI. Create the service from the Blueprint in the `deployment-prep` branch, keep the repository root as the Docker context, and use the Free plan. Keep it to one instance: route and stress-test state is held in process memory.
 
-`NASA_API_KEY` is not required for the map, DEM, route planner, or basic demo. Add a personal key only as a Railway service variable if NASA APOD or rover-photo requests are needed. Railway trial accounts with restricted network access may need GitHub verification before the service can reach upstream NASA/USGS sources.
+The `/health` endpoint returns a small `200` response without calling NASA or USGS. For a warmer demo, create an HTTP monitor in UptimeRobot for `https://<render-service>.onrender.com/health` with its free five-minute interval. This may reduce cold starts while the monitor is running, but it is not an uptime guarantee: Render may restart free instances, and the first request after a restart can still wait for startup.
+
+After the service deploys, add the custom domain in Render, then create Cloudflare CNAME records pointing to the Render `onrender.com` hostname. Leave Cloudflare proxying set to DNS only while Render verifies the domain and issues TLS; it can optionally be enabled after the certificate is valid. Remove conflicting AAAA records as directed by Render.
+
+`NASA_API_KEY` is not required for the map, DEM, route planner, or basic demo. Add a personal key only as a Render environment variable if NASA APOD or rover-photo requests are needed.
 
 ## Environment
 
