@@ -178,6 +178,8 @@ def basemap_layers():
 
 def auto_layer():
     names = basemap_layers()
+    exact_mdim21 = next((name for name in names if name.lower() == "mdim21"), None)
+    if exact_mdim21: return exact_mdim21
     return next((name for key in ("mdim","viking","themis","mola") for name in names if key in name.lower()), None) or (names[0] if names else None)
 
 

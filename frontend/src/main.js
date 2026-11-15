@@ -461,7 +461,7 @@ function MainApp() {
   const area = SITE_AREAS[site] || SITE_AREAS.jezero;
   const [status, setStatus] = useState(null);
   const [mapLayers, setMapLayers] = useState({ layers: [], auto: '' });
-  const [mapLayer, setMapLayer] = useState('MOLA_color');
+  const [mapLayer, setMapLayer] = useState('');
   const [products, setProducts] = useState([]);
   const [footprintsLive, setFootprintsLive] = useState(null);
   const [dem, setDem] = useState(null);
@@ -833,9 +833,14 @@ function MainApp() {
   return h('div', { className: `app-frame ${cleanMode ? 'clean-mode' : ''}` },
     h('header', { className: 'topbar' },
       h('div', { className: 'brand-lockup' }, h('div', { className: 'brand-mark' }, 'C'), h('div', null, h('b', null, 'CAIRN'), h('span', null, 'TRAIL MODE'))),
+      h('nav', { className: 'main-nav', 'aria-label': 'Main navigation' },
+        [['planner', 'Plan'], ['visor', 'Field visor'], ['brief', 'Mission brief']].map(([view, label]) => h('a', {
+          key: view, href: `#${view}`, className: activeView === view ? 'nav-current' : undefined,
+          'aria-current': activeView === view ? 'page' : undefined,
+        }, label))),
       h('div', { className: 'header-actions' },
-        h('button', { onClick: showTools, 'aria-expanded': hasPanel('tools') }, 'Tools  ·  T'),
-        h('button', { onClick: () => hasPanel('demo') ? closePanel('demo') : openPanel('demo'), 'aria-expanded': hasPanel('demo') }, 'Demo'),
+        activeView === 'planner' && h('button', { onClick: showTools, 'aria-expanded': hasPanel('tools') }, 'Tools'),
+        activeView === 'planner' && h('button', { onClick: () => hasPanel('demo') ? closePanel('demo') : openPanel('demo'), 'aria-expanded': hasPanel('demo') }, 'Guide'),
         h('button', { onClick: () => setCleanMode((value) => !value), 'aria-pressed': cleanMode }, cleanMode ? 'Effects off' : 'Clean')),
       h('div', { className: 'top-status' }, h('span', { className: `status-led ${status?.key ? 'led-ready' : ''}` }), placeholder && h('b', { className: 'placeholder-badge' }, 'PLACEHOLDER DATA'))),
     activeView === 'planner' && h('main', { className: 'planner-page' },
@@ -855,9 +860,16 @@ function MainApp() {
       hasPanel('demo') && h('section', { className: 'demo-guide' }, h('b', null, `DEMO · ${demoStep + 1} / ${demoSteps.length}`),
         h('span', null, demoSteps[demoStep]), h('button', { onClick: () => setDemoStep((step) => (step + 1) % demoSteps.length) }, demoStep === demoSteps.length - 1 ? 'Restart' : 'Next step'),
         h('button', { onClick: () => closePanel('demo'), 'aria-label': 'Close demo guide' }, '×')),
-      h('div', { className: 'primary-actions' },
-        h('button', { className: 'action-button', onClick: runMainStress, disabled: stressBusy }, stressBusy ? 'Running stress test…' : 'Run stress test'),
-        h('button', { onClick: () => navigate('visor') }, 'Visor mode'), h('button', { onClick: () => navigate('brief') }, 'Brief')),
+      !route && h('section', { className: 'route-guide panel', 'aria-labelledby': 'route-guide-title' },
+        h('div', { className: 'route-guide-copy' }, h('span', { className: 'eyebrow' }, 'GET STARTED'), h('h1', { id: 'route-guide-title' }, 'Plan a route'),
+          h('p', null, 'Choose a target, place waypoints on the map, then calculate the route and evidence checks.')),
+        h('ol', { className: 'route-guide-steps' },
+          h('li', null, h('b', null, '1'), h('span', null, 'Choose a region and target in Tools')),
+          h('li', null, h('b', null, '2'), h('span', null, 'Click the map to place at least two points')),
+          h('li', null, h('b', null, '3'), h('span', null, 'Calculate the route in Tools'))),
+        h('button', { className: 'action-button', onClick: () => openPanel('tools') }, 'Open Tools')),
+      route && h('div', { className: 'primary-actions' },
+        h('button', { className: 'action-button', onClick: runMainStress, disabled: stressBusy }, stressBusy ? 'Running stress test…' : 'Run stress test')),
       h('div', { className: 'map-section' },
         h('div', { className: 'map-mode-row' },
           h('div', { className: 'map-mode-toggle', role: 'group', 'aria-label': 'Map dimension' },

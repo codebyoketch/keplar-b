@@ -2,6 +2,10 @@
 
 Cairn is an advisory Marswalk planner for a small Jezero Crater area. It audits orbital evidence along a crew-drawn route, stress-tests segments, projects resources and shows a turn-back clock. It is a hackathon planning aid, not flight-certified software; resource values are editable, unvalidated assumptions.
 
+For an end-to-end product explanation and a timed tutorial-video walkthrough, see [Cairn project walkthrough and video guide](DEMO_SCRIPT.md).
+
+For a short project presentation, see the [seven-slide deck](presentation/Cairn_Project_Introduction.pptx) and its [speaker notes](presentation/SPEAKER_NOTES.md).
+
 ## First-time setup
 
 Use Python 3.11+, [uv](https://docs.astral.sh/uv/) and [pnpm](https://pnpm.io/). Install the backend dependencies and build the frontend:
@@ -13,7 +17,7 @@ uv run python backend/prep_cache.py
 cd frontend && pnpm install && pnpm build && cd ..
 ```
 
-Set `NASA_API_KEY` in `.env` to a NASA key. If omitted, Cairn uses `DEMO_KEY` with its rate limit. The key is read only by the backend and sent only to NASA APIs.
+`NASA_API_KEY` is optional. If omitted, Cairn uses NASA's `DEMO_KEY`, which has a lower request limit. A personal key only enables NASA APOD and rover-photo requests; the map, DEM, and route workflow do not need it. The key is read only by the backend and sent only to NASA APIs.
 
 ## Run
 
@@ -27,7 +31,7 @@ The demo cache makes the selected Jezero area available without a live source co
 
 ## Planner controls
 
-The planner opens with the verdict and turn-back clock, map, six layer toggles, evidence/resource strips, and the Run stress test, Visor mode, and Brief buttons. Target selection, waypoint editing, assumptions, individual instrument layers, sensor modes, registry and gaps/context tools, rover image lookup, project save/load, and the pytest command are in the closed-by-default **Tools** drawer (`T` also toggles it). After two map waypoints are placed, **Calculate mission route** becomes enabled in Tools. One calculation runs all three evidence claims; choose Terrain, Current conditions, or Thermal in the claim result cards to inspect each audit without recalculating. Click a segment or stop to open its right-side dossier; only its first three flags appear until **Show all flags and sources** is expanded. **Demo** opens one guided step at a time. Press `Esc` to close Tools and the dossier; **Clean** removes the remaining map-console effects.
+The top navigation stays available across **Plan**, **Field visor**, and **Mission brief**. On Plan, the start guide explains the route workflow; **Tools** contains landing region and target selection, claim results, planned stops, assumptions, advanced layers, sensor modes, registry/context tools, rover-image lookup, and project save/load. Click at least two points on the map, then choose **Calculate route + all 3 claims** in Tools. Cairn calculates Terrain, Current conditions, and Thermal together; select a claim card to inspect its result. Click a segment or stop to open its dossier. **Guide** opens the built-in walkthrough, and **Clean** hides map-console effects. The **Run stress test** button appears once a route exists.
 
 The 2D basemap reloads for the visible map extent after panning or zooming, allowing exploration beyond the original Jezero square where the selected WMS layer has coverage. **Recenter** returns to the original Jezero extent. Route, footprint, and DEM overlays remain tied to their loaded data extent.
 
