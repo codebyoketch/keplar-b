@@ -315,7 +315,7 @@ function LayerSwitch({ label, checked, onChange, note, disabled = false }) {
     h('span', { className: 'layer-switch-copy' }, h('b', null, label), note && h('small', null, note)));
 }
 
-function AssumptionsDrawer({ params, onParamsChange, onSave, saving }) {
+function AssumptionsDrawer({ params, onParamsChange, onSave, saving, canEdit }) {
   const entries = Object.entries(params || {});
   const scalar = entries.filter(([, entry]) => !entry?.value || typeof entry.value !== 'object');
   const reserve = params?.reserve_minimums?.value || { oxygen: 30, power: 20 };
@@ -323,10 +323,11 @@ function AssumptionsDrawer({ params, onParamsChange, onSave, saving }) {
       h('p', { className: 'assumption-warning' }, 'Crew-set values · unvalidated assumptions'),
       scalar.map(([key, entry]) => h('label', { className: 'assumption-field', key },
         h('span', null, h('b', null, key.replaceAll('_', ' ')), h('small', null, `${entry.unit} · ${entry.label}`)),
-        h('input', { type: 'number', min: 0, step: 'any', value: entry.value, onChange: (event) => onParamsChange(key, Number(event.target.value)) }))),
+        h('input', { type: 'number', min: 0, step: 'any', value: entry.value, disabled: !canEdit, onChange: (event) => onParamsChange(key, Number(event.target.value)) }))),
       h('div', { className: 'reserve-fields' }, h('span', null, h('b', null, 'reserve minimums'), h('small', null, '% · unvalidated assumption')),
-        ['oxygen', 'power'].map((key) => h('label', { key }, key, h('input', { type: 'number', min: 0, step: 1, value: reserve[key], onChange: (event) => onParamsChange('reserve_minimums', { ...reserve, [key]: Number(event.target.value) }) })))),
-      h('button', { className: 'action-button action-button-full', onClick: onSave, disabled: saving }, saving ? 'SAVING…' : 'Save assumptions'));
+        ['oxygen', 'power'].map((key) => h('label', { key }, key, h('input', { type: 'number', min: 0, step: 1, value: reserve[key], disabled: !canEdit, onChange: (event) => onParamsChange('reserve_minimums', { ...reserve, [key]: Number(event.target.value) }) })))),
+      !canEdit && h('small', { className: 'read-only-note' }, 'Assumptions are read-only on this public demo.'),
+      h('button', { className: 'action-button action-button-full', onClick: onSave, disabled: saving || !canEdit }, saving ? 'SAVING…' : canEdit ? 'Save assumptions' : 'Read-only deployment'));
 }
 
 function ProductDossier({ dossier, segment, stressBusy, onStress, onClose }) {
@@ -805,7 +806,7 @@ function MainApp() {
         h('span', null, waypoints.length >= 2 ? `${waypoints.length} waypoints · ${area.label}` : 'Place at least two map points to calculate route distance and audit.'),
         h('button', { className: 'action-button', onClick: calculateRoute, disabled: busy || waypoints.length < 2 }, busy ? 'Calculating route and 3 claims…' : 'Calculate route + all 3 claims'))),
     h('section', { className: 'tools-section' }, h('h3', null, 'Assumptions'),
-      h(AssumptionsDrawer, { params, onParamsChange: changeParam, onSave: saveParams, saving: savingParams })),
+      h(AssumptionsDrawer, { params, onParamsChange: changeParam, onSave: saveParams, saving: savingParams, canEdit: Boolean(status?.param_updates_enabled) })),
     h('section', { className: 'tools-section' }, h('h3', null, 'Advanced map layers'),
       advLayer('alternate', 'Alternate route'), advLayer('comms', 'Comms line-of-sight', 'Geometric only'),
       advLayer('radiation', 'Radiation context', 'Other site'),

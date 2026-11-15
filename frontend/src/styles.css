@@ -193,6 +193,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .text-input { display: block; width: 100%; height: 32px; padding: 0 8px; border: 1px solid rgba(125, 177, 163, .24); border-radius: 0; outline: 0; color: #d6e5df; background: #06110f; font-size: 9px; }
 .text-input:focus, .assumption-field input:focus { border-color: var(--cyan); }
 .assumption-warning { color: #e6bd62; padding: 7px; margin: 7px 0 9px; border: 1px solid rgba(244, 189, 79, .25); background: rgba(87, 64, 19, .12); font-size: 7px; line-height: 1.4; }
+.read-only-note { display: block; margin: 8px 0; color: #d7bf81; font-size: 12px; line-height: 1.4; }
 .assumption-field, .reserve-fields { display: grid; grid-template-columns: minmax(0, 1fr) 73px; align-items: center; gap: 7px; margin: 0; padding: 6px 0; border-bottom: 1px solid rgba(125, 182, 168, .09); }
 .assumption-field span, .reserve-fields > span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .assumption-field b, .reserve-fields b { color: #b9cac4; font-size: 8px; font-weight: 500; text-transform: capitalize; }

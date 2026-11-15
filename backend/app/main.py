@@ -1,8 +1,11 @@
 from __future__ import annotations
 import math
+import threading
+import time
+from collections import deque
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import Response
-from .config import KEY_STATUS, NASA_API_KEY
+from fastapi.responses import JSONResponse, Response
+from .config import KEY_STATUS, NASA_API_KEY, PARAM_UPDATES_ENABLED
 from . import data_sources as sources
 from .grid import from_dem
 from .routing import plan_route
@@ -20,6 +23,41 @@ SEGMENT_DOSSIERS={}
 ROUTE_CONTEXTS={}
 LATEST_ROUTE_ID=None
 
+# Per-client in-process ceilings for public demo endpoints. Configure the host's
+# edge rate limits as well when deploying multiple workers or instances.
+RATE_LIMITS={
+    "/api/basemap":(120,60), "/api/dem":(60,60), "/api/dem/hirise":(30,60),
+    "/api/dem/hirise/ortho":(30,60), "/api/footprints":(60,60), "/api/registry":(30,60),
+    "/api/apod":(20,60), "/api/rover-photos":(30,60), "/api/route":(12,60), "/api/stress":(30,60),
+}
+_RATE_BUCKETS={}
+_RATE_LOCK=threading.Lock()
+_RATE_REQUESTS=0
+
+
+@app.middleware("http")
+async def limit_public_api_requests(request:Request,call_next):
+    global _RATE_REQUESTS
+    limit=RATE_LIMITS.get(request.url.path)
+    if limit:
+        max_requests,window=limit
+        client=request.client.host if request.client else "unknown"
+        now=time.monotonic()
+        with _RATE_LOCK:
+            key=(client,request.url.path)
+            bucket=_RATE_BUCKETS.setdefault(key,deque())
+            while bucket and now-bucket[0]>=window: bucket.popleft()
+            if len(bucket)>=max_requests:
+                retry_after=max(1,math.ceil(window-(now-bucket[0])))
+                return JSONResponse({"detail":"Too many requests; retry later."},status_code=429,
+                                    headers={"Retry-After":str(retry_after)})
+            bucket.append(now)
+            _RATE_REQUESTS+=1
+            if _RATE_REQUESTS%256==0:
+                stale=[item for item,entries in _RATE_BUCKETS.items() if not entries or now-entries[-1]>=window]
+                for item in stale: _RATE_BUCKETS.pop(item,None)
+    return await call_next(request)
+
 
 @app.middleware("http")
 async def redact_server_key(request:Request,call_next):
@@ -36,7 +74,7 @@ async def redact_server_key(request:Request,call_next):
 
 @app.get("/api/status")
 def status():
-    return {"key":KEY_STATUS}
+    return {"key":KEY_STATUS,"param_updates_enabled":PARAM_UPDATES_ENABLED}
 
 
 @app.get("/api/layers")
@@ -128,6 +166,8 @@ def params():
 
 @app.put("/api/params")
 def put_params(payload:dict):
+    if not PARAM_UPDATES_ENABLED:
+        raise HTTPException(403,detail="Parameter updates are disabled for this public demo")
     try:return update_params(payload)
     except ValueError as exc:raise HTTPException(400,detail=str(exc))
 
